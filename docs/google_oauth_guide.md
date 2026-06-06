@@ -1,61 +1,61 @@
-# Panduan Membuat Google OAuth Client ID
+# Guide: Creating Google OAuth Client ID
 
-Dokumen ini menjelaskan langkah-langkah untuk membuat dan mengonfigurasi **Client ID** dan **Client Secret** milik Anda sendiri di Google Cloud Console untuk digunakan dengan fitur `novara login`.
-
----
-
-## Langkah 1: Buat Project di Google Cloud Console
-1. Buka [Google Cloud Console](https://console.cloud.google.com/).
-2. Login menggunakan akun Google Anda.
-3. Di pojok kiri atas (sebelah logo Google Cloud), klik menu drop-down project lalu klik **New Project** (Project Baru).
-4. Masukkan nama project (misalnya: `Novara OS`) lalu klik **Create**.
+This document explains the steps to create and configure your own **Client ID** and **Client Secret** on the Google Cloud Console for use with the `novara login` feature.
 
 ---
 
-## Langkah 2: Konfigurasi OAuth Consent Screen (Layar Persetujuan)
-Sebelum membuat kunci, Anda harus mengonfigurasi layar persetujuan OAuth:
-1. Ketik **"OAuth consent screen"** pada kolom pencarian di bagian atas, lalu klik menu tersebut.
-2. Pilih User Type: **External** lalu klik **Create**.
-3. Isi informasi aplikasi yang wajib:
-   * **App name**: `Novara OS`
-   * **User support email**: Pilih email Anda.
-   * **Developer contact information**: Masukkan alamat email Anda.
-4. Klik **Save and Continue** (Simpan dan Lanjutkan).
-5. Pada tab **Scopes**, klik *Save and Continue* (tidak perlu konfigurasi khusus).
-6. Pada tab **Test Users**, tambahkan email Google Anda sendiri sebagai pengguna uji coba agar Anda bisa login sebelum aplikasi dipublikasikan secara global. Klik *Save and Continue*.
+## Step 1: Create a Project in Google Cloud Console
+1. Open [Google Cloud Console](https://console.cloud.google.com/).
+2. Log in using your Google account.
+3. In the top-left corner (next to the Google Cloud logo), click the project drop-down menu, then click **New Project**.
+4. Enter a project name (e.g., `Novara OS`), then click **Create**.
 
 ---
 
-## Langkah 3: Buat OAuth Client ID
-1. Klik menu **Credentials** (Kredensial) pada sidebar sebelah kiri.
-2. Di bagian atas, klik **+ Create Credentials** lalu pilih **OAuth client ID**.
-3. Pilih **Application type**: `Web application` (Aplikasi Web).
-4. Masukkan nama (misalnya: `Novara OS CLI`).
-5. Pada bagian **Authorized redirect URIs** (URI Pengalihan Sah), klik **+ Add URI** lalu masukkan alamat callback lokal berikut:
+## Step 2: Configure the OAuth Consent Screen
+Before creating your client credentials, you must configure the OAuth consent screen:
+1. Search for **"OAuth consent screen"** in the top search bar and click on the matching menu option.
+2. Select User Type: **External**, then click **Create**.
+3. Fill in the required application details:
+   - **App name**: `Novara OS`
+   - **User support email**: Choose your email address.
+   - **Developer contact information**: Enter your email address.
+4. Click **Save and Continue**.
+5. On the **Scopes** tab, click *Save and Continue* (no special configuration is required).
+6. On the **Test Users** tab, add your own Google email address as a test user. This allows you to authenticate while the app is still in testing mode. Click *Save and Continue*.
+
+---
+
+## Step 3: Create the OAuth Client ID
+1. Click the **Credentials** menu on the left sidebar.
+2. At the top, click **+ Create Credentials** and select **OAuth client ID**.
+3. Select **Application type**: `Web application`.
+4. Enter a name (e.g., `Novara OS CLI`).
+5. Under **Authorized redirect URIs**, click **+ Add URI** and enter the following local callback address:
    ```
    http://localhost:8085/callback
    ```
    > [!IMPORTANT]
-   > URI pengalihan harus persis sama dengan alamat di atas agar proses local callback di terminal dapat membaca token autentikasi.
-6. Klik **Create**.
+   > The redirect URI must match the address above exactly so that the local callback listener in the terminal can retrieve the authentication token.
+6. Click **Create**.
 
 ---
 
-## Langkah 4: Simpan Credentials ke Novara OS
-Setelah berhasil dibuat, Google akan menampilkan pop-up berisi **Your Client ID** dan **Your Client Secret**.
+## Step 4: Save Credentials to Novara OS
+Once successfully created, Google will show a pop-up containing **Your Client ID** and **Your Client Secret**.
 
-Gunakan perintah interaktif baru Novara OS untuk menyimpannya secara instan:
+Use the Novara OS CLI commands to save these credentials securely inside your active workspace:
 
 ```bash
-# Simpan Client ID
-novara set-key google_client_id "MASUKKAN_CLIENT_ID_ANDA"
+# Save Google Client ID
+novara set-key google_client_id "YOUR_CLIENT_ID"
 
-# Simpan Client Secret
-novara set-key google_client_secret "MASUKKAN_CLIENT_SECRET_ANDA"
+# Save Google Client Secret
+novara set-key google_client_secret "YOUR_CLIENT_SECRET"
 ```
 
-Setelah disimpan, Anda dapat langsung menjalankan perintah login secara global:
+Once saved, you can run the login command globally:
 ```bash
 novara login
 ```
-Browser akan otomatis terbuka dan mengarahkan Anda ke persetujuan login Google tanpa ada error!
+This will automatically open your default browser to complete the Google authentication flow.

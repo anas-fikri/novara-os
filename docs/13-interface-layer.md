@@ -32,8 +32,8 @@ novara init
 # Login to Google Account via OAuth
 novara login
 
-# Simpan API Key/kredensial secara interaktif
-novara set-key gemini "API_KEY_ANDA"
+# Save API Key/credentials interactively
+novara set-key gemini "YOUR_API_KEY"
 
 # View current active workspace configuration
 novara workspace
@@ -50,38 +50,38 @@ novara logs
 # Scan local disk to auto-discover and import MCPs/Nodes
 novara scan
 
-# Mulai REST API server untuk memproses antrean tugas (task queue)
+# Start REST API server to process task queue
 novara serve [--port 8088]
 ```
 
-### Sesi Interaktif & Slash Commands
+### Interactive Sessions & Slash Commands
 
-Saat berada dalam sesi interaktif (`novara chat`), pengguna dapat mengontrol parameter runtime Novara OS secara langsung menggunakan **perintah slash (slash commands)**:
+When in an interactive session (`novara chat`), users can directly control the Novara OS runtime parameters using **slash commands**:
 
-*   **`/help`** — Menampilkan daftar semua perintah bantuan yang tersedia.
-*   **`/model [nama_model]`** — Melihat model LLM aktif, atau mengubahnya secara instan (contoh: `/model gemini-1.5-pro`).
-*   **`/set-key <provider> <key>`** — Menyimpan API Key penyedia secara interaktif (contoh: `/set-key gemini AIzaSy...`).
-*   **`/tools`** — Menampilkan semua daftar peralatan (tools) MCP dan Native yang saat ini sedang aktif dalam workspace.
-*   **`/mcp`** — Menampilkan daftar server MCP terdaftar beserta konfigurasinya.
-*   **`/add-mcp <name> <cmd> [args...]`** — Menambahkan server MCP baru ke konfigurasi dan langsung menghubungkannya (contoh: `/add-mcp sqlite npx -y @modelcontextprotocol/server-sqlite`).
-*   **`/skills`** — Menampilkan daftar semua modul skill kustom yang terpasang di workspace.
-*   **`/add-skill <name> <desc>`** — Membuat kerangka folder skill kustom baru secara instan.
-*   **`/facts`** — Menampilkan seluruh memori fakta/preferensi pengguna yang tersimpan secara persisten.
-*   **`/fact <key> <value>`** — Menyimpan fakta atau preferensi baru ke sistem memori jangka panjang secara instan.
-*   **`/scan`** — Pindai disk lokal untuk mendeteksi MCP server & SSH/Docker Node secara interaktif dan mengimpornya ke workspace (baik workspace aktif maupun tenant baru).
-*   **`/queue`** — Tampilkan status antrean tugas dari API server.
-*   **`/queue add <query>`** — Tambahkan tugas baru ke antrean API server.
-*   **`/clear`** — Membersihkan riwayat percakapan untuk sesi obrolan yang sedang berjalan.
-*   **`/cls`** atau **`/clear-screen`** — Bersihkan tampilan layar TUI (konteks percakapan tetap dipertahankan).
-*   **`/exit`** atau **`/quit`** — Keluar dari sesi interaktif.
+*   **`/help`** — Display a list of all available help commands.
+*   **`/model [model_name]`** — View the active LLM model, or change it instantly (example: `/model gemini-1.5-pro`).
+*   **`/set-key <provider> <key>`** — Save the provider's API Key interactively (example: `/set-key gemini AIzaSy...`).
+*   **`/tools`** — Display a list of all active MCP and Native tools in the workspace.
+*   **`/mcp`** — Display the list of registered MCP servers and their configurations.
+*   **`/add-mcp <name> <cmd> [args...]`** — Add a new MCP server to the configuration and connect to it immediately (example: `/add-mcp sqlite npx -y @modelcontextprotocol/server-sqlite`).
+*   **`/skills`** — Display a list of all custom skill modules installed in the workspace.
+*   **`/add-skill <name> <desc>`** — Create a new custom skill folder template instantly.
+*   **`/facts`** — Display all persistently stored facts and user preferences.
+*   **`/fact <key> <value>`** — Instantly save a new fact or preference to the long-term memory system.
+*   **`/scan`** — Scan the local disk to interactively detect MCP servers & SSH/Docker Nodes and import them into the workspace.
+*   **`/queue`** — Display the task queue status from the API server.
+*   **`/queue add <query>`** — Add a new task to the API server queue.
+*   **`/clear`** — Clear the conversation history for the current active chat session.
+*   **`/cls`** or **`/clear-screen`** — Clear the TUI screen display (maintaining conversation context).
+*   **`/exit`** or **`/quit`** — Exit the interactive session.
 
-### Steering & Konfirmasi Persetujuan (Interactive Approval)
+### Steering & Approval Confirmation (Interactive Approval)
 
-Ketika agen memicu alat (tool) mutatif yang dapat mengubah state sistem (seperti mengedit berkas atau mematikan kontainer Docker), TUI akan menampilkan prompt persetujuan interaktif dengan pilihan sebagai berikut:
-1. **Ya (Setujui)**: Menjalankan alat dan mengembalikan hasilnya ke agen.
-2. **Tidak (Tolak)**: Menolak eksekusi alat dan mengembalikan pesan penolakan agar agen mencari alternatif.
-3. **Steer (Beri Koreksi)**: Menolak eksekusi alat dan memungkinkan pengguna memberikan masukan/feedback tekstual secara langsung. Feedback ini dimasukkan ke dalam riwayat ReAct agen sebagai input petunjuk/koreksi arah kerja berikutnya.
-4. **Keluar (Batalkan Tugas)**: Membatalkan tugas secara keseluruhan dan keluar dari iterasi agen.
+When the agent triggers a mutative tool that can change the system state (such as editing a file or stopping a Docker container), the CLI/TUI will display an interactive approval prompt with the following choices:
+1. **Yes (Approve)**: Run the tool and return the output to the agent.
+2. **No (Reject)**: Reject tool execution and return a rejection message so the agent seeks alternative paths.
+3. **Steer (Correct)**: Reject tool execution and allow the user to provide textual feedback directly. This feedback is fed back into the agent's ReAct history as input instructions for its next steps.
+4. **Exit (Cancel Task)**: Cancel the task entirely and exit the agent iteration.
 
 
 

@@ -7,5 +7,5 @@ Novara OS development adheres to these core architectural guidelines to maintain
 3.  **Local-First / Infra-Native**: Maximize utilization of local computation and standard system protocols (SSH, Docker API, MCP) before falling back to complex cloud agent frameworks.
 4.  **Deterministic Controls**: AI agents suggest and draft, but critical actions (destructive operations, infrastructure changes) require explicit user approval (Human-in-the-Loop).
 5.  **Declarative Configurations**: Define workspaces, nodes, and automation flows as version-controlled text files (YAML/JSON).
-6.  **Simplicity in Operation (Kemudahan Pengoperasian)**: Memprioritaskan alur kerja pengguna yang sederhana dan intuitif. Inisialisasi, perpindahan workspace, dan eksekusi tugas harus dapat dilakukan dengan perintah minimal. Sistem harus menyembunyikan kompleksitas teknis (seperti manajemen transport MCP atau optimasi token) dari pengalaman harian pengguna.
+6.  **Simplicity in Operation**: Prioritize simple and intuitive workflows. Initialization, workspace switching, and task execution should require minimal commands. The system should shield users from underlying complexity (such as MCP transport management or token optimization) during daily usage.
 
