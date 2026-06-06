@@ -3,6 +3,7 @@ import path from "path";
 import yaml from "yaml";
 import dotenv from "dotenv";
 import { execSync } from "child_process";
+import { fileURLToPath } from "url";
 import { encrypt, decrypt, getOrGenerateMasterKey } from "./security.js";
 
 export interface WorkspaceConfig {
@@ -81,6 +82,32 @@ export class WorkspaceManager {
     // Create subdirs
     fs.mkdirSync(path.join(this.novaraDir, "memory"), { recursive: true });
     fs.mkdirSync(path.join(this.novaraDir, "knowledge"), { recursive: true });
+
+    // Copy default templates if they exist in the package
+    try {
+      const __dirname = path.dirname(fileURLToPath(import.meta.url));
+      const packageTemplatesDir = path.resolve(__dirname, "../../templates/skills");
+      const targetSkillsDir = path.join(this.novaraDir, "skills");
+      
+      if (fs.existsSync(packageTemplatesDir)) {
+        fs.mkdirSync(targetSkillsDir, { recursive: true });
+        fs.cpSync(packageTemplatesDir, targetSkillsDir, { recursive: true });
+        
+        // Ensure scripts are executable on non-Windows
+        if (process.platform !== "win32") {
+          const bugHunterPath = path.join(targetSkillsDir, "super-bmad/scripts/bug_hunter.js");
+          if (fs.existsSync(bugHunterPath)) {
+            try {
+              fs.chmodSync(bugHunterPath, 0o755);
+            } catch {
+              // Ignore chmod failures
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn(`[Workspace Init] Gagal menyalin default skills: ${err.message}`);
+    }
 
     const defaultConfig: WorkspaceConfig = {
       version: "1",

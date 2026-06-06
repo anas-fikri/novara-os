@@ -1,0 +1,6 @@
+name: super-bmad
+description: "Rencana pengembangan terstandarisasi menggabungkan BMAD (dengan fitur Rapat AI Personas) dan Superpower Workflow (dengan QA Loop & State Tracking)."
+version: "1.0.0"
+permissions:
+  - filesystem
+  - command_execution
