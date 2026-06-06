@@ -455,10 +455,9 @@ program
       const drawStatusBox = () => {
         const cols = Math.min(process.stdout.columns || 80, 80);
         const activeModel = orchestrator.getModel();
-        const activeWorkspace = config.name;
-        
+        const activeSession = orchestrator.getActiveSession();
         // Title headers
-        const titleLeft = ` Workspace: ${chalk.green(activeWorkspace)} `;
+        const titleLeft = ` Workspace: ${chalk.green(activeWorkspace)} | Session: ${chalk.magenta(activeSession)} `;
         const titleRight = ` Model: ${chalk.yellow(activeModel)} `;
         
         // Calculate borders
@@ -507,6 +506,10 @@ program
             if (parts.length === 1 && !normalizedLine.endsWith(" ")) {
               const completions = [
                 "/help",
+                "/session ",
+                "/session new ",
+                "/session load ",
+                "/session delete ",
                 "/model ",
                 "/set-key ",
                 "/setup",

@@ -10,13 +10,77 @@ export interface ChatMessage {
 
 export class MemorySystem {
   private memoryDir: string;
-  private historyPath: string;
+  private historyPath!: string;
   private factsPath: string;
+  private activeSessionName: string = "default";
 
   constructor(memoryDir: string) {
     this.memoryDir = memoryDir;
-    this.historyPath = path.join(this.memoryDir, "chat_history.jsonl");
     this.factsPath = path.join(this.memoryDir, "facts.json");
+
+    // Ensure memory directory exists
+    if (!fs.existsSync(this.memoryDir)) {
+      fs.mkdirSync(this.memoryDir, { recursive: true });
+    }
+
+    // Legacy migration: Rename legacy chat_history.jsonl to chat_history_default.jsonl
+    const legacyHistoryPath = path.join(this.memoryDir, "chat_history.jsonl");
+    const defaultHistoryPath = path.join(this.memoryDir, "chat_history_default.jsonl");
+    if (fs.existsSync(legacyHistoryPath) && !fs.existsSync(defaultHistoryPath)) {
+      try {
+        fs.renameSync(legacyHistoryPath, defaultHistoryPath);
+      } catch {}
+    }
+
+    // Load last active session name or default to "default"
+    const activeSessionPath = path.join(this.memoryDir, "active_session.txt");
+    let activeSession = "default";
+    if (fs.existsSync(activeSessionPath)) {
+      try {
+        activeSession = fs.readFileSync(activeSessionPath, "utf-8").trim() || "default";
+      } catch {}
+    }
+    this.setSession(activeSession);
+  }
+
+  setSession(sessionName: string) {
+    const cleanSessionName = sessionName.trim().replace(/[^a-zA-Z0-9_-]/g, "");
+    this.activeSessionName = cleanSessionName || "default";
+    this.historyPath = path.join(this.memoryDir, `chat_history_${this.activeSessionName}.jsonl`);
+
+    const activeSessionPath = path.join(this.memoryDir, "active_session.txt");
+    try {
+      fs.writeFileSync(activeSessionPath, this.activeSessionName, "utf-8");
+    } catch {}
+  }
+
+  getActiveSession(): string {
+    return this.activeSessionName;
+  }
+
+  listSessions(): string[] {
+    if (!fs.existsSync(this.memoryDir)) return ["default"];
+    try {
+      const files = fs.readdirSync(this.memoryDir);
+      const sessions = files
+        .filter((file) => file.startsWith("chat_history_") && file.endsWith(".jsonl"))
+        .map((file) => file.substring("chat_history_".length, file.length - ".jsonl".length));
+      return sessions.length > 0 ? sessions : ["default"];
+    } catch {
+      return ["default"];
+    }
+  }
+
+  deleteSession(sessionName: string) {
+    const sessionFile = path.join(this.memoryDir, `chat_history_${sessionName}.jsonl`);
+    if (fs.existsSync(sessionFile)) {
+      try {
+        fs.unlinkSync(sessionFile);
+      } catch {}
+    }
+    if (this.activeSessionName === sessionName) {
+      this.setSession("default");
+    }
   }
 
   saveMessage(msg: ChatMessage) {

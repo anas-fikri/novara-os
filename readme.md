@@ -138,6 +138,10 @@ When the agent executes any **mutative tool** (such as editing code, creating di
 ### In-Session Slash Commands
 Use the following slash commands within a chat session to inspect or configure the runtime:
 *   `/help` — Display list of available slash commands.
+*   `/session` — View active session name and list all sessions.
+*   `/session new <name>` — Create and switch to a new chat session.
+*   `/session load <name>` — Load and switch to an existing chat session.
+*   `/session delete <name>` — Delete a session and its history file.
 *   `/model [name]` — View or change the active LLM model (e.g., `/model openrouter/meta-llama/llama-3-8b-instruct`).
 *   `/set-key <provider> <key>` — Save API Key for a provider.
 *   `/tools` — List all active tools (MCP and Native).

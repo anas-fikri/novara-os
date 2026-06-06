@@ -59,6 +59,10 @@ novara serve [--port 8088]
 When in an interactive session (`novara chat`), users can directly control the Novara OS runtime parameters using **slash commands**:
 
 *   **`/help`** — Display a list of all available help commands.
+*   **`/session`** — Display active session name and list all sessions.
+*   **`/session new <name>`** — Create and switch to a new chat session.
+*   **`/session load <name>`** — Load and switch to an existing chat session.
+*   **`/session delete <name>`** — Delete an existing session and its history file.
 *   **`/model [model_name]`** — View the active LLM model, or change it instantly (example: `/model gemini-1.5-pro`).
 *   **`/set-key <provider> <key>`** — Save the provider's API Key interactively (example: `/set-key gemini AIzaSy...`).
 *   **`/tools`** — Display a list of all active MCP and Native tools in the workspace.

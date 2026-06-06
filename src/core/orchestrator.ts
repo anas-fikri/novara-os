@@ -27,6 +27,10 @@ export class CoreOrchestrator {
     this.workspaceManager = new WorkspaceManager(workspaceDir);
   }
 
+  getActiveSession(): string {
+    return this.memorySystem ? this.memorySystem.getActiveSession() : "default";
+  }
+
   async init(): Promise<void> {
     if (!this.workspaceManager.isWorkspace()) {
       throw new Error("Directory is not a Novara OS workspace. Run 'novara init' first.");
@@ -1034,23 +1038,24 @@ Instruksi tambahan:
     switch (command) {
       case "help":
         console.log(chalk.green("\n=== Novara OS Slash Commands ==="));
-        console.log(`${chalk.cyan("/model [nama_model]")}         - Pilih atau cari model LLM aktif (interaktif + smart search)`);
-        console.log(`${chalk.cyan("/set-key [prov] [key]")}      - Set API Key secara interaktif (contoh: /set-key gemini AIzaSy...)`);
-        console.log(`${chalk.cyan("/setup")}                      - Setup provider LLM dan API Key secara interaktif`);
-        console.log(`${chalk.cyan("/tools [nama_tool]")}         - Detail parameter & daftar alat (tools) MCP & native`);
-        console.log(`${chalk.cyan("/mcp")}                       - Kelola, hubungkan ulang, atau daftar server MCP`);
-        console.log(`${chalk.cyan("/add-mcp [name] [cmd] [args]")} - Daftarkan server MCP baru`);
-        console.log(`${chalk.cyan("/nodes")}                      - Kelola, cek koneksi, atau daftar node server remote`);
-        console.log(`${chalk.cyan("/skills")}                    - Tampilkan, baca instruksi, atau hapus skill lokal`);
-        console.log(`${chalk.cyan("/add-skill [name] [desc]")}    - Buat modul skill baru secara interaktif`);
-        console.log(`${chalk.cyan("/facts")}                     - Kelola, edit, atau hapus preferensi & fakta tersimpan`);
-        console.log(`${chalk.cyan("/fact [key] [value]")}         - Simpan preferensi/fakta baru`);
-        console.log(`${chalk.cyan("/scan")}                      - Pindai disk lokal untuk mendaftarkan MCP & SSH Node secara otomatis`);
-        console.log(`${chalk.cyan("/queue")}                      - Tampilkan status antrean tugas dari API server`);
-        console.log(`${chalk.cyan("/queue add <query>")}          - Tambahkan tugas baru ke antrean API server`);
-        console.log(`${chalk.cyan("/clear")}                     - Bersihkan riwayat percakapan sesi ini`);
-        console.log(`${chalk.cyan("/cls")} atau ${chalk.cyan("/clear-screen")}    - Bersihkan tampilan layar TUI`);
-        console.log(`${chalk.cyan("/exit")} atau ${chalk.cyan("/quit")}           - Keluar dari sesi interaktif`);
+        console.log(`${chalk.cyan("/session")}                    - Manage, list, create, switch or delete sessions`);
+        console.log(`${chalk.cyan("/model [model_name]")}         - Select or search active LLM model (interactive search)`);
+        console.log(`${chalk.cyan("/set-key [prov] [key]")}      - Save provider API key (e.g. /set-key gemini AIzaSy...)`);
+        console.log(`${chalk.cyan("/setup")}                      - Configure LLM providers and API keys interactively`);
+        console.log(`${chalk.cyan("/tools [tool_name]")}         - Display parameter details & list of active tools`);
+        console.log(`${chalk.cyan("/mcp")}                       - Manage, reconnect, or register MCP servers`);
+        console.log(`${chalk.cyan("/add-mcp [name] [cmd] [args]")} - Register and connect a new MCP server`);
+        console.log(`${chalk.cyan("/nodes")}                      - Manage, ping, or register remote server nodes`);
+        console.log(`${chalk.cyan("/skills")}                    - List, view instructions, or delete local skills`);
+        console.log(`${chalk.cyan("/add-skill [name] [desc]")}    - Create a new skill module interactively`);
+        console.log(`${chalk.cyan("/facts")}                     - Manage, edit, or delete stored user preferences`);
+        console.log(`${chalk.cyan("/fact [key] [value]")}         - Instantly save a new user preference or fact`);
+        console.log(`${chalk.cyan("/scan")}                      - Scan local disk to auto-register MCPs and SSH nodes`);
+        console.log(`${chalk.cyan("/queue")}                      - Display background task queue status`);
+        console.log(`${chalk.cyan("/queue add <query>")}          - Add a new task to the background API queue`);
+        console.log(`${chalk.cyan("/clear")}                     - Clear chat conversation history for the active session`);
+        console.log(`${chalk.cyan("/cls")} or ${chalk.cyan("/clear-screen")}    - Clear terminal console screen`);
+        console.log(`${chalk.cyan("/exit")} or ${chalk.cyan("/quit")}           - Exit the interactive session`);
         console.log("=================================\n");
         break;
 
@@ -2461,6 +2466,85 @@ Instruksi tambahan:
         }
         
         await prompts({ type: "text", name: "ok", message: "Tekan Enter untuk melanjutkan..." });
+        break;
+      }
+
+      case "session":
+      case "sessions": {
+        const subCmd = args[0]?.toLowerCase();
+        const sessionArg = args[1];
+
+        if (!subCmd) {
+          const sessions = this.memorySystem.listSessions();
+          const active = this.memorySystem.getActiveSession();
+          console.log(chalk.green("\n=== Novara OS Chat Sessions ==="));
+          console.log(`Active Session: ${chalk.bold.magenta(active)}`);
+          console.log("--------------------------------");
+          for (const s of sessions) {
+            if (s === active) {
+              console.log(`* ${chalk.bold.magenta(s)} (active)`);
+            } else {
+              console.log(`  ${s}`);
+            }
+          }
+          console.log("\nCommands:");
+          console.log(`  ${chalk.cyan("/session new <name>")}    - Create and switch to a new session`);
+          console.log(`  ${chalk.cyan("/session load <name>")}   - Switch to an existing session`);
+          console.log(`  ${chalk.cyan("/session delete <name>")} - Delete a session`);
+          console.log("=================================\n");
+          break;
+        }
+
+        if (subCmd === "new" || subCmd === "create") {
+          if (!sessionArg) {
+            console.log(chalk.red("Error: Nama sesi baru harus disertakan. Contoh: /session new debug-api"));
+            break;
+          }
+          this.memorySystem.setSession(sessionArg);
+          console.log(chalk.green(`✔ Berhasil membuat dan beralih ke sesi baru: ${chalk.bold.magenta(this.memorySystem.getActiveSession())}`));
+          break;
+        }
+
+        if (subCmd === "load" || subCmd === "switch") {
+          if (!sessionArg) {
+            console.log(chalk.red("Error: Nama sesi harus disertakan. Contoh: /session load default"));
+            break;
+          }
+          const sessions = this.memorySystem.listSessions();
+          if (!sessions.includes(sessionArg)) {
+            console.log(chalk.red(`Error: Sesi '${sessionArg}' tidak ditemukan. Buat dengan '/session new ${sessionArg}'.`));
+            break;
+          }
+          this.memorySystem.setSession(sessionArg);
+          console.log(chalk.green(`✔ Berhasil beralih ke sesi: ${chalk.bold.magenta(this.memorySystem.getActiveSession())}`));
+          break;
+        }
+
+        if (subCmd === "delete" || subCmd === "remove") {
+          if (!sessionArg) {
+            console.log(chalk.red("Error: Nama sesi yang ingin dihapus harus disertakan."));
+            break;
+          }
+          if (sessionArg === "default") {
+            console.log(chalk.red("Error: Sesi 'default' tidak dapat dihapus."));
+            break;
+          }
+          const confirmDel = await prompts({
+            type: "confirm",
+            name: "value",
+            message: `Apakah Anda yakin ingin menghapus sesi '${sessionArg}' beserta seluruh riwayatnya?`,
+            initial: false
+          });
+          if (confirmDel.value) {
+            this.memorySystem.deleteSession(sessionArg);
+            console.log(chalk.green(`✔ Sesi '${sessionArg}' berhasil dihapus.`));
+          } else {
+            console.log(chalk.yellow("Penghapusan dibatalkan."));
+          }
+          break;
+        }
+
+        console.log(chalk.red(`Perintah sesi tidak dikenal: ${subCmd}. Gunakan '/session' untuk bantuan.`));
         break;
       }
 
