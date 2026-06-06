@@ -127,6 +127,7 @@ novara chat
 *   **Persistent Status Box**: Displayed at the top of the prompt to show the currently active workspace name, default LLM model, and connected MCP servers.
 *   **Interactive Shell**: Supports command history, standard keyboard shortcuts, and smart prompts.
 *   **Tab Autocomplete**: Type `/` or `\` and press `[Tab]` to display or autocomplete slash commands. Pressing `[Tab]` after `/model` will list and search available models.
+*   **Auto Update Detection**: On startup, `novara chat` automatically checks if a newer version of the CLI is published on GitHub, displaying an inline warning notification if your local installation is outdated.
 
 ### Steering & Human-in-the-Loop Approval
 When the agent executes any **mutative tool** (such as editing code, creating directories, running bash scripts, or calling infrastructure API endpoints), the terminal prompts the user for confirmation:
@@ -146,7 +147,7 @@ Use the following slash commands within a chat session to inspect or configure t
 *   `/set-key <provider> <key>` — Save API Key for a provider.
 *   `/tools` — List all active tools (MCP and Native).
 *   `/mcp` — Inspect connected Model Context Protocol servers.
-*   `/add-mcp <name> <cmd> [args...]` — Register and launch a new MCP server.
+*   `/add-mcp <name> <cmd> [args...]` — Register a new MCP server. If run without arguments, launches an interactive wizard with built-in templates (Filesystem, Git, Puppeteer, SQLite, Postgres, Fetch, Brave Search, Custom).
 *   `/skills` — View custom skill directories in the workspace (includes option to install external skills).
 *   `/add-skill <name> <description>` — Scaffold a new custom skill template.
 *   `/add-skill install <git-url/folder-path> [custom_name]` — Dynamically install a skill from a Git repository or a local folder path.
