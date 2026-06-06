@@ -10,6 +10,8 @@ import { startOauthFlow } from "./workspace/oauth.js";
 import { runInteractiveSetup } from "./workspace/setup.js";
 import readline from "readline";
 import { ApiServer } from "./core/server.js";
+import { execSync } from "child_process";
+import os from "os";
 
 const program = new Command();
 
@@ -681,6 +683,136 @@ program
       console.log(`[${roleColor(msg.role.toUpperCase())}]: ${msg.content}`);
     }
     console.log("====================================\n");
+  });
+
+// Command: Self Update
+program
+  .command("update")
+  .description("Perbarui Novara OS ke versi terbaru dari GitHub secara otomatis")
+  .action(async () => {
+    console.log(chalk.blue("Memeriksa pembaruan dari GitHub..."));
+    const orchestrator = new CoreOrchestrator(process.cwd());
+    await orchestrator.init();
+    
+    const remoteVersion = await orchestrator.checkForUpdates();
+    if (remoteVersion) {
+      console.log(chalk.green(`\n🔔 Versi baru tersedia: v${remoteVersion} (versi lokal: v0.1.0)`));
+      const confirm = await prompts({
+        type: "confirm",
+        name: "yes",
+        message: "Apakah Anda ingin melakukan pembaruan sekarang?",
+        initial: true
+      });
+      
+      if (!confirm.yes) {
+        console.log(chalk.yellow("Pembaruan dibatalkan."));
+        await orchestrator.shutdown();
+        return;
+      }
+    } else {
+      console.log(chalk.green("\nAnda sudah menggunakan versi terbaru (v0.1.0)."));
+      const confirm = await prompts({
+        type: "confirm",
+        name: "yes",
+        message: "Apakah Anda ingin memaksa instalasi ulang (force reinstall)?",
+        initial: false
+      });
+      
+      if (!confirm.yes) {
+        await orchestrator.shutdown();
+        return;
+      }
+    }
+    
+    await orchestrator.shutdown();
+    
+    console.log(chalk.yellow("\nMengunduh dan memperbarui paket..."));
+    try {
+      execSync("npm install -g git+https://github.com/anas-fikri/novara-os.git", { stdio: "inherit" });
+      console.log(chalk.bold.green("\n🚀 Novara OS berhasil diperbarui ke versi terbaru!"));
+    } catch (err: any) {
+      console.error(chalk.red(`\nGagal memperbarui: ${err.message}`));
+    }
+  });
+
+// Command: Uninstall / Purge System
+program
+  .command("uninstall")
+  .description("Hapus total konfigurasi, Keychain master-key, dan CLI Novara OS dari komputer ini")
+  .action(async () => {
+    console.log(chalk.bold.red("\n🚨 PERINGATAN: Tindakan ini akan menghapus secara permanen:"));
+    console.log(" 1. Master Key enkripsi dari macOS Keychain / OS Credential Manager");
+    console.log(" 2. Folder konfigurasi global ~/.novara");
+    console.log(" 3. Folder lokal .novara di direktori ini (jika ada)");
+    console.log(" 4. Aplikasi CLI Novara OS dari sistem global Anda\n");
+    
+    const confirm = await prompts({
+      type: "confirm",
+      name: "yes",
+      message: "Apakah Anda yakin ingin melanjutkan penghapusan total?",
+      initial: false
+    });
+    
+    if (!confirm.yes) {
+      console.log(chalk.yellow("Penghapusan dibatalkan."));
+      return;
+    }
+    
+    // 1. Hapus keychain
+    console.log(chalk.blue("\n1. Menghapus Master Key dari Keychain/OS Credential Manager..."));
+    try {
+      if (process.platform === "darwin") {
+        execSync("security delete-generic-password -a 'master-key' -s 'NovaraOS' 2>/dev/null", { stdio: "ignore" });
+      } else if (process.platform === "win32") {
+        // Windows deletes ~/.novara/master.key which is handled below
+      } else {
+        // Linux
+        execSync("secret-tool clear application NovaraOS account master-key 2>/dev/null", { stdio: "ignore" });
+      }
+      console.log(chalk.green("✔ Master Key berhasil dihapus."));
+    } catch {
+      console.log(chalk.yellow("⚠ Gagal menghapus Keychain password (mungkin tidak ada)."));
+    }
+    
+    // 2. Hapus ~/.novara
+    console.log(chalk.blue("\n2. Menghapus folder konfigurasi global ~/.novara..."));
+    try {
+      const homeDir = os.homedir();
+      const globalConfig = path.join(homeDir, ".novara");
+      if (fs.existsSync(globalConfig)) {
+        fs.rmSync(globalConfig, { recursive: true, force: true });
+        console.log(chalk.green("✔ Folder ~/.novara berhasil dihapus."));
+      } else {
+        console.log(chalk.gray("• Folder ~/.novara tidak ditemukan."));
+      }
+    } catch (err: any) {
+      console.log(chalk.red(`⚠ Gagal menghapus ~/.novara: ${err.message}`));
+    }
+    
+    // 3. Hapus local .novara
+    console.log(chalk.blue("\n3. Menghapus folder workspace lokal .novara (jika ada)..."));
+    try {
+      const localNovara = path.join(process.cwd(), ".novara");
+      if (fs.existsSync(localNovara)) {
+        fs.rmSync(localNovara, { recursive: true, force: true });
+        console.log(chalk.green("✔ Folder .novara lokal berhasil dihapus."));
+      } else {
+        console.log(chalk.gray("• Folder .novara lokal tidak ditemukan di direktori saat ini."));
+      }
+    } catch (err: any) {
+      console.log(chalk.red(`⚠ Gagal menghapus .novara lokal: ${err.message}`));
+    }
+    
+    // 4. Uninstall global CLI package
+    console.log(chalk.blue("\n4. Menghapus binary CLI Novara OS dari sistem global Anda..."));
+    try {
+      console.log(chalk.gray("Menjalankan 'npm uninstall -g novara-os'..."));
+      execSync("npm uninstall -g novara-os", { stdio: "inherit" });
+      console.log(chalk.bold.green("\n🎉 Novara OS berhasil dihapus total dari komputer Anda!"));
+    } catch (err: any) {
+      console.log(chalk.red(`\n⚠ Gagal menghapus paket npm secara otomatis: ${err.message}`));
+      console.log(chalk.yellow("Silakan jalankan secara manual: npm uninstall -g novara-os"));
+    }
   });
 
 // If called with no arguments (e.g. just 'nos' or 'novara'), default to 'chat'
