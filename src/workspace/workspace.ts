@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import yaml from "yaml";
 import dotenv from "dotenv";
+import { execSync } from "child_process";
 import { encrypt, decrypt, getOrGenerateMasterKey } from "./security.js";
 
 export interface WorkspaceConfig {
@@ -279,6 +280,59 @@ GOOGLE_CLIENT_SECRET=
     fs.writeFileSync(path.join(skillPath, "manifest.yaml"), yaml.stringify(manifestContent), "utf-8");
 
     return skillPath;
+  }
+
+  installSkill(source: string, customName?: string): { name: string; path: string } {
+    const skillsDir = this.getSkillsDir();
+    
+    // Determine the name of the skill
+    let skillName = customName || "";
+    if (!skillName) {
+      const basename = path.basename(source);
+      skillName = basename.replace(/\.git$/, "");
+    }
+    
+    // Sanitize name
+    skillName = skillName.trim().replace(/[^a-zA-Z0-9_-]/g, "");
+    if (!skillName) {
+      throw new Error("Invalid skill name derived from source.");
+    }
+    
+    const targetPath = path.join(skillsDir, skillName);
+    if (fs.existsSync(targetPath)) {
+      throw new Error(`Skill with name '${skillName}' already exists in this workspace.`);
+    }
+    
+    if (source.startsWith("http://") || source.startsWith("https://") || source.startsWith("git@") || source.startsWith("git://")) {
+      execSync(`git clone "${source}" "${targetPath}"`, { stdio: "pipe" });
+    } else {
+      const absoluteSource = path.resolve(source);
+      if (!fs.existsSync(absoluteSource)) {
+        throw new Error(`Local skill path '${source}' does not exist.`);
+      }
+      
+      fs.mkdirSync(targetPath, { recursive: true });
+      fs.cpSync(absoluteSource, targetPath, { recursive: true });
+    }
+    
+    // Ensure manifest.yaml exists
+    const manifestPath = path.join(targetPath, "manifest.yaml");
+    if (!fs.existsSync(manifestPath)) {
+      const basicManifest = {
+        name: skillName,
+        description: `Imported from ${source}`,
+        version: "0.1.0"
+      };
+      fs.writeFileSync(manifestPath, yaml.stringify(basicManifest), "utf-8");
+    }
+    
+    // Ensure SKILL.md exists
+    const skillMdPath = path.join(targetPath, "SKILL.md");
+    if (!fs.existsSync(skillMdPath)) {
+      fs.writeFileSync(skillMdPath, `# Skill: ${skillName}\n\nImported from ${source}\n`, "utf-8");
+    }
+    
+    return { name: skillName, path: targetPath };
   }
 
   listSkills(): Array<{ name: string; description: string }> {

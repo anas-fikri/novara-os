@@ -520,6 +520,7 @@ program
                 "/node",
                 "/skills",
                 "/add-skill ",
+                "/add-skill install ",
                 "/facts",
                 "/fact ",
                 "/scan",

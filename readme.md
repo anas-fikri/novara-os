@@ -147,8 +147,9 @@ Use the following slash commands within a chat session to inspect or configure t
 *   `/tools` — List all active tools (MCP and Native).
 *   `/mcp` — Inspect connected Model Context Protocol servers.
 *   `/add-mcp <name> <cmd> [args...]` — Register and launch a new MCP server.
-*   `/skills` — View custom skill directories in the workspace.
+*   `/skills` — View custom skill directories in the workspace (includes option to install external skills).
 *   `/add-skill <name> <description>` — Scaffold a new custom skill template.
+*   `/add-skill install <git-url/folder-path> [custom_name]` — Dynamically install a skill from a Git repository or a local folder path.
 *   `/facts` — View persistent long-term memory facts.
 *   `/fact <key> <value>` — Instantly save a persistent preference to memory.
 *   `/scan` — Scan local disk to auto-discover MCP servers & SSH nodes.

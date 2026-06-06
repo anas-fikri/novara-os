@@ -68,8 +68,9 @@ When in an interactive session (`novara chat`), users can directly control the N
 *   **`/tools`** — Display a list of all active MCP and Native tools in the workspace.
 *   **`/mcp`** — Display the list of registered MCP servers and their configurations.
 *   **`/add-mcp <name> <cmd> [args...]`** — Add a new MCP server to the configuration and connect to it immediately (example: `/add-mcp sqlite npx -y @modelcontextprotocol/server-sqlite`).
-*   **`/skills`** — Display a list of all custom skill modules installed in the workspace.
+*   **`/skills`** — Display a list of all custom skill modules installed in the workspace (includes option to install external skills).
 *   **`/add-skill <name> <desc>`** — Create a new custom skill folder template instantly.
+*   **`/add-skill install <git-url/folder-path> [custom_name]`** — Dynamically clone or copy an external skill into the workspace.
 *   **`/facts`** — Display all persistently stored facts and user preferences.
 *   **`/fact <key> <value>`** — Instantly save a new fact or preference to the long-term memory system.
 *   **`/scan`** — Scan the local disk to interactively detect MCP servers & SSH/Docker Nodes and import them into the workspace.

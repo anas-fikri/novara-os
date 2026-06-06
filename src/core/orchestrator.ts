@@ -2003,7 +2003,8 @@ Instruksi tambahan:
           const skillsList = this.workspaceManager.listSkills();
           const choices = [
             { title: chalk.red("↩ Kembali / Keluar"), value: "__exit__" },
-            { title: chalk.bold.green("✦ Buat Skill Baru..."), value: "__add__" }
+            { title: chalk.bold.green("✦ Buat Skill Baru..."), value: "__add__" },
+            { title: chalk.bold.cyan("✦ Install Skill Eksternal..."), value: "__install__" }
           ];
 
           for (const s of skillsList) {
@@ -2027,6 +2028,24 @@ Instruksi tambahan:
 
           if (response.skill === "__add__") {
             await this.handleSlashCommand("/add-skill");
+            continue;
+          }
+
+          if (response.skill === "__install__") {
+            const installResponse = await prompts({
+              type: "text",
+              name: "source",
+              message: "Masukkan URL Git atau path folder lokal skill:"
+            });
+            if (installResponse.source) {
+              const spinner = ora("Menginstal skill...").start();
+              try {
+                const res = this.workspaceManager.installSkill(installResponse.source);
+                spinner.succeed(`Skill '${res.name}' berhasil diinstal di: ${res.path}`);
+              } catch (err: any) {
+                spinner.fail(`Gagal menginstal skill: ${err.message}`);
+              }
+            }
             continue;
           }
 
@@ -2081,6 +2100,23 @@ Instruksi tambahan:
       }
 
       case "add-skill":
+        if (args[0] === "install") {
+          const source = args[1];
+          const customName = args[2];
+          if (!source) {
+            console.log(chalk.red("Format salah. Gunakan: /add-skill install <git-url/folder-path> [nama_kustom]"));
+            break;
+          }
+          const spinner = ora(`Menginstal skill...`).start();
+          try {
+            const res = this.workspaceManager.installSkill(source, customName);
+            spinner.succeed(`Skill '${res.name}' berhasil diinstal di: ${res.path}`);
+          } catch (err: any) {
+            spinner.fail(`Gagal menginstal skill: ${err.message}`);
+          }
+          break;
+        }
+
         if (args.length === 0) {
           console.log(chalk.green("\n=== Buat Skill Baru Secara Interaktif ==="));
           const nameResponse = await prompts({
