@@ -184,6 +184,8 @@ Here is the complete list of commands available globally via `novara <command>`:
 | `logs` | View recent conversation logs or clear them with `--clear`. |
 | `serve` | Launch the REST API server for background queue execution. |
 | `completion` | Setup shell autocomplete integration (zsh/bash). |
+| `update` | Update Novara OS to the latest version from GitHub automatically. |
+| `uninstall` | Completely purge Novara OS config, macOS Keychain credentials, and global CLI package. |
 
 ---
 

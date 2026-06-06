@@ -103,6 +103,8 @@ _novara() {
     'logs:Tampilkan log riwayat percakapan'
     'serve:Mulai REST API server untuk memproses antrean tugas (task queue)'
     'completion:Setup autocomplete untuk zsh/bash'
+    'update:Perbarui Novara OS ke versi terbaru dari GitHub secara otomatis'
+    'uninstall:Hapus total konfigurasi, Keychain master-key, dan CLI Novara OS'
   )
 
   _arguments \\
