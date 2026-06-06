@@ -1,0 +1,9 @@
+node_modules
+dist
+.novara
+.env
+*.local
+.DS_Store
+temp-workspace-e2e
+*.tgz
+
