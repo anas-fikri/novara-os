@@ -730,6 +730,11 @@ program
     
     console.log(chalk.yellow("\nMengunduh dan memperbarui paket..."));
     try {
+      try {
+        execSync("npm uninstall -g novara-os", { stdio: "ignore" });
+      } catch {
+        // Ignore uninstall error if it wasn't linked/installed
+      }
       execSync("npm install -g git+https://github.com/anas-fikri/novara-os.git", { stdio: "inherit" });
       console.log(chalk.bold.green("\n🚀 Novara OS berhasil diperbarui ke versi terbaru!"));
     } catch (err: any) {
