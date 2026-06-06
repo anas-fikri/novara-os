@@ -67,7 +67,7 @@ When in an interactive session (`novara chat`), users can directly control the N
 *   **`/set-key <provider> <key>`** — Save the provider's API Key interactively (example: `/set-key gemini AIzaSy...`).
 *   **`/tools`** — Display a list of all active MCP and Native tools in the workspace.
 *   **`/mcp`** — Display the list of registered MCP servers and their configurations.
-*   **`/add-mcp <name> <cmd> [args...]`** — Add a new MCP server to the configuration and connect to it immediately. If run without arguments, it launches a guided wizard with built-in templates (Filesystem, Git, Puppeteer, SQLite, Postgres, Fetch, Brave Search, Custom).
+*   **`/add-mcp <name> <cmd> [args...]`** — Add a new MCP server to the configuration and connect to it immediately. If run without arguments, it launches a guided wizard with built-in templates (Filesystem, Git, Puppeteer, SQLite, Postgres, MSSQL, Fetch, Brave Search, Custom) supporting fully interactive connection parameter inputs.
 *   **`/skills`** — Display a list of all custom skill modules installed in the workspace (includes option to install external skills).
 *   **`/add-skill <name> <desc>`** — Create a new custom skill folder template instantly.
 *   **`/add-skill install <git-url/folder-path> [custom_name]`** — Dynamically clone or copy an external skill into the workspace.

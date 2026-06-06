@@ -1874,6 +1874,7 @@ Instruksi tambahan:
             { title: "🌐 Puppeteer (Automasi & pengambilan data browser headless)", value: "puppeteer" },
             { title: "🗄 SQLite Database (Akses & manipulasi database SQLite lokal)", value: "sqlite" },
             { title: "🐘 PostgreSQL Database (Hubungkan ke database Postgres)", value: "postgres" },
+            { title: "💾 Microsoft SQL Server (Hubungkan ke database MSSQL)", value: "mssql" },
             { title: "🌐 Web Fetch (Unduh & baca halaman web untuk konteks)", value: "fetch" },
             { title: "🔍 Brave Search (Pencarian web via Brave Search API)", value: "brave-search" },
             { title: "💻 Custom Command (Tulis command sendiri secara manual)", value: "custom" }
@@ -1951,17 +1952,45 @@ Instruksi tambahan:
           else if (presetResponse.preset === "postgres") {
             name = "postgres";
             command = "npx";
-            const connResponse = await prompts({
-              type: "text",
-              name: "value",
-              message: "Masukkan connection string PostgreSQL (contoh: postgres://user:pass@host:port/db):",
-              validate: (val) => val.trim().length > 0 ? true : "Connection string tidak boleh kosong."
-            });
-            if (!connResponse.value) {
+
+            console.log(chalk.cyan("\n--- Konfigurasi PostgreSQL ---"));
+            const hostRes = await prompts({ type: "text", name: "value", message: "Host:", initial: "localhost" });
+            const portRes = await prompts({ type: "number", name: "value", message: "Port:", initial: 5432 });
+            const dbRes = await prompts({ type: "text", name: "value", message: "Database Name:", validate: (v) => v.trim() ? true : "Database name is required." });
+            const userRes = await prompts({ type: "text", name: "value", message: "Username:", validate: (v) => v.trim() ? true : "Username is required." });
+            const passRes = await prompts({ type: "password", name: "value", message: "Password:" });
+
+            if (!dbRes.value || !userRes.value) {
               console.log(chalk.yellow("Batal menambahkan server MCP."));
               break;
             }
-            mcpArgs = ["-y", "@modelcontextprotocol/server-postgres", connResponse.value.trim()];
+
+            const encodedPass = encodeURIComponent(passRes.value || "");
+            const connStr = `postgresql://${userRes.value}:${encodedPass}@${hostRes.value || "localhost"}:${portRes.value || 5432}/${dbRes.value}`;
+            this.workspaceManager.saveSecret("POSTGRES_CONNECTION_STRING", connStr);
+            
+            mcpArgs = ["-y", "@modelcontextprotocol/server-postgres", connStr];
+          }
+          else if (presetResponse.preset === "mssql") {
+            name = "mssql";
+            command = "npx";
+
+            console.log(chalk.cyan("\n--- Konfigurasi Microsoft SQL Server ---"));
+            const hostRes = await prompts({ type: "text", name: "value", message: "Host / Server Address:", initial: "localhost" });
+            const portRes = await prompts({ type: "number", name: "value", message: "Port:", initial: 1433 });
+            const dbRes = await prompts({ type: "text", name: "value", message: "Database Name:", validate: (v) => v.trim() ? true : "Database name is required." });
+            const userRes = await prompts({ type: "text", name: "value", message: "Username:", validate: (v) => v.trim() ? true : "Username is required." });
+            const passRes = await prompts({ type: "password", name: "value", message: "Password:" });
+
+            if (!dbRes.value || !userRes.value) {
+              console.log(chalk.yellow("Batal menambahkan server MCP."));
+              break;
+            }
+
+            const connStr = `Server=${hostRes.value || "localhost"},${portRes.value || 1433};Database=${dbRes.value};User Id=${userRes.value};Password=${passRes.value || ""};Encrypt=true;TrustServerCertificate=true;`;
+            this.workspaceManager.saveSecret("MSSQL_CONNECTION_STRING", connStr);
+            
+            mcpArgs = ["-y", "mcp-mssql-server"];
           }
           else if (presetResponse.preset === "fetch") {
             name = "fetch";

@@ -147,7 +147,7 @@ Use the following slash commands within a chat session to inspect or configure t
 *   `/set-key <provider> <key>` — Save API Key for a provider.
 *   `/tools` — List all active tools (MCP and Native).
 *   `/mcp` — Inspect connected Model Context Protocol servers.
-*   `/add-mcp <name> <cmd> [args...]` — Register a new MCP server. If run without arguments, launches an interactive wizard with built-in templates (Filesystem, Git, Puppeteer, SQLite, Postgres, Fetch, Brave Search, Custom).
+*   `/add-mcp <name> <cmd> [args...]` — Register a new MCP server. If run without arguments, launches an interactive wizard with built-in templates (Filesystem, Git, Puppeteer, SQLite, Postgres, MSSQL, Fetch, Brave Search, Custom) supporting fully interactive connection parameter inputs.
 *   `/skills` — View custom skill directories in the workspace (includes option to install external skills).
 *   `/add-skill <name> <description>` — Scaffold a new custom skill template.
 *   `/add-skill install <git-url/folder-path> [custom_name]` — Dynamically install a skill from a Git repository or a local folder path.
