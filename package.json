@@ -18,7 +18,11 @@
     "start": "node dist/index.js",
     "novara": "node dist/index.js",
     "test": "node tests/e2e.test.js",
-    "package": "npm run build && npm pack"
+    "package": "npm run build && npm pack",
+    "clean:dist": "rm -rf dist",
+    "clean:keychain": "security delete-generic-password -a 'master-key' -s 'NovaraOS' || true",
+    "clean:test-ws": "rm -rf test-workspace/.novara test-workspace/some-subfolder test-workspace/.novara/meeting_minutes.md test-workspace/.novara/bug_report.json test-workspace/.novara/state.json || true",
+    "clean:all": "npm run clean:dist && npm run clean:keychain && npm run clean:test-ws"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
