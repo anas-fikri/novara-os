@@ -31,6 +31,35 @@ export class CoreOrchestrator {
     return this.memorySystem ? this.memorySystem.getActiveSession() : "default";
   }
 
+  async checkForUpdates(): Promise<string | null> {
+    try {
+      const response = await fetch("https://raw.githubusercontent.com/anas-fikri/novara-os/main/package.json", {
+        signal: AbortSignal.timeout(1500)
+      });
+      if (!response.ok) return null;
+      const data = (await response.json()) as any;
+      const remoteVersion = data.version;
+      const localVersion = "0.1.0";
+      
+      if (remoteVersion && remoteVersion !== localVersion) {
+        const parseVersion = (v: string) => v.split(".").map(Number);
+        const [rMajor, rMinor, rPatch] = parseVersion(remoteVersion);
+        const [lMajor, lMinor, lPatch] = parseVersion(localVersion);
+        
+        if (
+          rMajor > lMajor ||
+          (rMajor === lMajor && rMinor > lMinor) ||
+          (rMajor === lMajor && rMinor === lMinor && rPatch > lPatch)
+        ) {
+          return remoteVersion;
+        }
+      }
+    } catch {
+      // Fail silently
+    }
+    return null;
+  }
+
   async init(): Promise<void> {
     if (!this.workspaceManager.isWorkspace()) {
       throw new Error("Directory is not a Novara OS workspace. Run 'novara init' first.");
@@ -1841,6 +1870,8 @@ Instruksi tambahan:
           
           const presetChoices = [
             { title: "📁 Filesystem (Akses file/folder di sistem lokal)", value: "filesystem" },
+            { title: "🐙 Git (Akses repositori Git lokal untuk status/commit/diff)", value: "git" },
+            { title: "🌐 Puppeteer (Automasi & pengambilan data browser headless)", value: "puppeteer" },
             { title: "🗄 SQLite Database (Akses & manipulasi database SQLite lokal)", value: "sqlite" },
             { title: "🐘 PostgreSQL Database (Hubungkan ke database Postgres)", value: "postgres" },
             { title: "🌐 Web Fetch (Unduh & baca halaman web untuk konteks)", value: "fetch" },
@@ -1879,6 +1910,29 @@ Instruksi tambahan:
             }
             mcpArgs = ["-y", "@modelcontextprotocol/server-filesystem", pathResponse.value.trim()];
           } 
+          else if (presetResponse.preset === "git") {
+            name = "git";
+            command = "npx";
+            const repoPathResponse = await prompts({
+              type: "text",
+              name: "value",
+              message: "Masukkan absolute path repositori Git (opsional, default: current folder):",
+              initial: process.cwd()
+            });
+            if (!repoPathResponse.value) {
+              console.log(chalk.yellow("Batal menambahkan server MCP."));
+              break;
+            }
+            mcpArgs = ["-y", "@modelcontextprotocol/server-git"];
+            if (repoPathResponse.value.trim()) {
+              mcpArgs.push(repoPathResponse.value.trim());
+            }
+          }
+          else if (presetResponse.preset === "puppeteer") {
+            name = "puppeteer";
+            command = "npx";
+            mcpArgs = ["-y", "@modelcontextprotocol/server-puppeteer"];
+          }
           else if (presetResponse.preset === "sqlite") {
             name = "sqlite";
             command = "npx";

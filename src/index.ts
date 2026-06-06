@@ -439,6 +439,16 @@ program
   
   ${chalk.bold("Workspace-Oriented Intelligence OS")} (v0.1.0)
       `));
+
+      const updateVersion = await orchestrator.checkForUpdates();
+      if (updateVersion) {
+        console.log(chalk.hex("#f9e2af")(`
+┌──────────────────────────────────────────────────────────────┐
+│ 🔔 New update available: v${updateVersion.padEnd(6)} (Current: v0.1.0)     │
+│    Run: npm install -g git+https://github.com/anas-fikri/novara-os.git │
+└──────────────────────────────────────────────────────────────┘
+        `));
+      }
       console.log(chalk.gray("--------------------------------------------------"));
       console.log(`${chalk.bold("Workspace:")} ${chalk.green(config.name)}`);
       console.log(`${chalk.bold("Model    :")} ${chalk.yellow(config.provider.default)}`);
