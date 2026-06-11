@@ -15,7 +15,6 @@ export async function runInteractiveSetup(manager: WorkspaceManager): Promise<vo
       { title: "OpenAI", value: "openai" },
       { title: "OpenRouter (Global Gateway)", value: "openrouter" },
       { title: "GitHub Copilot (OAuth)", value: "copilot" },
-      { title: "Antigravity (OAuth)", value: "antigravity" },
       { title: "Ollama (Lokal)", value: "ollama" },
       { title: "9Router (Lokal Gateway)", value: "9router" },
       { title: "CLIProxy (Proxy)", value: "cliproxy" }
@@ -116,7 +115,7 @@ export async function runInteractiveSetup(manager: WorkspaceManager): Promise<vo
       manager.saveSecret("CLIPROXY_API_KEY", keyResponse.value);
     }
     console.log(chalk.green(`✔ CLIProxy configuration berhasil disimpan!`));
-  } else if (provider === "copilot" || provider === "antigravity") {
+  } else if (provider === "copilot") {
     const { startDeviceFlow } = await import("./oauth.js");
     await startDeviceFlow(manager, provider);
   }
@@ -254,17 +253,6 @@ export async function runInteractiveSetup(manager: WorkspaceManager): Promise<vo
         ]
       });
       defaultModel = modelResponse.value || "copilot/gpt-4o";
-    } else if (provider === "antigravity") {
-      const modelResponse = await prompts({
-        type: "select",
-        name: "value",
-        message: "Pilih model Antigravity default:",
-        choices: [
-          { title: "Agy Gemini 2.5 Pro", value: "antigravity/gemini-2.5-pro" },
-          { title: "Agy Claude 3.5 Sonnet", value: "antigravity/claude-3.5-sonnet" }
-        ]
-      });
-      defaultModel = modelResponse.value || "antigravity/gemini-2.5-pro";
     }
 
     try {

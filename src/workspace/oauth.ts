@@ -90,7 +90,7 @@ export async function startOauthFlow(manager: WorkspaceManager): Promise<void> {
 // DEVICE CODE FLOW FOR COPILOT & ANTIGRAVITY
 // ============================================
 
-export async function startDeviceFlow(manager: WorkspaceManager, provider: "copilot" | "antigravity"): Promise<void> {
+export async function startDeviceFlow(manager: WorkspaceManager, provider: "copilot"): Promise<void> {
   if (provider === "copilot") {
     const CLIENT_ID = "01ab8ac9400c4e429b23";
     try {
@@ -114,6 +114,30 @@ export async function startDeviceFlow(manager: WorkspaceManager, provider: "copi
       console.log(chalk.white(`1. Buka URL ini di browser Anda: `) + chalk.cyan.underline(deviceData.verification_uri));
       console.log(chalk.white(`2. Masukkan kode otorisasi berikut: `) + chalk.bold.green(deviceData.user_code));
       console.log(chalk.bold.yellow(`--------------------------------------------------`));
+      
+      // Salin ke clipboard
+      try {
+        if (process.platform === "darwin") {
+          spawn("pbcopy", [], { stdio: ["pipe", "ignore", "ignore"] }).stdin.end(deviceData.user_code);
+        } else if (process.platform === "win32") {
+          spawn("clip", [], { stdio: ["pipe", "ignore", "ignore"] }).stdin.end(deviceData.user_code);
+        } else {
+          spawn("xclip", ["-selection", "clipboard"], { stdio: ["pipe", "ignore", "ignore"] }).stdin.end(deviceData.user_code);
+        }
+        console.log(chalk.green("✔ Kode otorisasi otomatis tersalin ke clipboard!"));
+      } catch (e) {}
+
+      // Buka browser otomatis
+      try {
+        if (process.platform === "darwin") {
+          spawn("open", [deviceData.verification_uri]);
+        } else if (process.platform === "win32") {
+          spawn("cmd.exe", ["/c", "start", '""', deviceData.verification_uri]);
+        } else {
+          spawn("xdg-open", [deviceData.verification_uri]);
+        }
+      } catch (e) {}
+
       console.log(chalk.gray(`Menunggu Anda menyelesaikan login di browser... (Timeout: ${deviceData.expires_in} detik)`));
 
       let tokenData = null;
@@ -159,28 +183,6 @@ export async function startDeviceFlow(manager: WorkspaceManager, provider: "copi
       
     } catch (err: any) {
       console.error(chalk.red(`\n✖ Gagal login GitHub Copilot: ${err.message}`));
-    }
-  } else if (provider === "antigravity") {
-    try {
-      console.log(chalk.blue("\n🔄 Memulai autentikasi Antigravity (Device Flow)..."));
-      
-      const mockDeviceCode = "AGY-" + Math.floor(1000 + Math.random() * 9000);
-      const verificationUri = "https://antigravity.ai/device";
-      
-      console.log(chalk.bold.magenta(`\n--------------------------------------------------`));
-      console.log(chalk.white(`1. Buka URL ini di browser Anda: `) + chalk.cyan.underline(verificationUri));
-      console.log(chalk.white(`2. Masukkan kode otorisasi berikut: `) + chalk.bold.green(mockDeviceCode));
-      console.log(chalk.bold.magenta(`--------------------------------------------------`));
-      console.log(chalk.gray(`Menunggu Anda menyelesaikan login di browser... (Simulasi otomatis selesai dalam 3 detik)`));
-
-      await new Promise(r => setTimeout(r, 3000));
-      const mockToken = "agy_tk_" + Buffer.from(Date.now().toString()).toString('base64');
-      
-      manager.saveSecret("ANTIGRAVITY_OAUTH_TOKEN", mockToken);
-      console.log(chalk.green("✔ Berhasil login! Access Token Antigravity telah disimpan di Keychain."));
-      
-    } catch (err: any) {
-      console.error(chalk.red(`\n✖ Gagal login Antigravity: ${err.message}`));
     }
   }
 }

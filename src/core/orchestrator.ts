@@ -1479,7 +1479,6 @@ Instruksi tambahan:
               { title: "OpenAI (OPENAI_API_KEY)", value: "openai" },
               { title: "OpenRouter (OPENROUTER_API_KEY)", value: "openrouter" },
               { title: "GitHub Copilot (OAuth Device Flow)", value: "copilot" },
-              { title: "Antigravity (OAuth Device Flow)", value: "antigravity" },
               { title: "Google Client ID (GOOGLE_CLIENT_ID)", value: "google_client_id" },
               { title: "Google Client Secret (GOOGLE_CLIENT_SECRET)", value: "google_client_secret" },
               { title: "Lainnya (Kustom)", value: "custom" }
@@ -1491,7 +1490,7 @@ Instruksi tambahan:
             break;
           }
 
-          if (providerResponse.provider === "copilot" || providerResponse.provider === "antigravity") {
+          if (providerResponse.provider === "copilot") {
             const { startDeviceFlow } = await import("../workspace/oauth.js");
             await startDeviceFlow(this.workspaceManager, providerResponse.provider);
             break;
