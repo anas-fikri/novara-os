@@ -34,7 +34,7 @@ export class McpClientManager {
           const logStream = fs.createWriteStream(path.join(logDir, `${config.name}.log`), { flags: "a" });
           transport.stderr.pipe(logStream);
         } else {
-          transport.stderr.resume(); // consume stream to avoid blocking
+          (transport.stderr as any).resume(); // consume stream to avoid blocking
         }
       }
 
@@ -45,7 +45,6 @@ export class McpClientManager {
         },
         {
           capabilities: {
-            tools: {},
             roots: {
               listChanged: true
             }
@@ -112,8 +111,8 @@ export class McpClientManager {
           });
 
           // Standard output format for MCP tools is content array of text/image
-          if (result && result.content) {
-            return result.content
+          if (result && Array.isArray(result.content)) {
+            return (result.content as any[])
               .filter((c: any) => c.type === "text")
               .map((c: any) => c.text)
               .join("\n");

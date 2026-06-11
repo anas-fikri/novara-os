@@ -3,6 +3,7 @@ import chalk from "chalk";
 import fs from "fs";
 import path from "path";
 import prompts from "prompts";
+import ora from "ora";
 import { WorkspaceManager } from "./workspace/workspace.js";
 import { CoreOrchestrator } from "./core/orchestrator.js";
 import { MemorySystem } from "./memory/memory.js";

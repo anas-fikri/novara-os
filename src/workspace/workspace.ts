@@ -38,8 +38,8 @@ export interface WorkspaceConfig {
 }
 
 export class WorkspaceManager {
-  private currentDir: string;
-  private novaraDir: string;
+  private currentDir!: string;
+  private novaraDir!: string;
   private configPath: string;
   private encryptedSecretsPath: string;
 
