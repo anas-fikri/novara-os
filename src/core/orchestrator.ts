@@ -234,7 +234,7 @@ Instruksi tambahan:
 
     let loop = true;
     let iterations = 0;
-    const maxIterations = 10;
+    const maxIterations = this.config.settings?.max_iterations ?? 300;
     let lastResponseText = "";
 
     while (loop && iterations < maxIterations) {
@@ -923,7 +923,7 @@ Instruksi tambahan:
 
     let loop = true;
     let iterations = 0;
-    const maxIterations = 5; // limit sub-agent iterations to avoid runaway loops
+    const maxIterations = this.config.settings?.max_iterations ?? 300; // limit sub-agent iterations
     let lastResponseText = "";
 
     while (loop && iterations < maxIterations) {

@@ -33,6 +33,7 @@ export interface WorkspaceConfig {
       primary_language?: string;
       fallback_language?: string;
     };
+    max_iterations?: number;
   };
 }
 
@@ -127,9 +128,10 @@ export class WorkspaceManager {
       ],
       settings: {
         localization: {
-          primary_language: "id",
-          fallback_language: "en"
-        }
+          primary_language: "Indonesian",
+          fallback_language: "English"
+        },
+        max_iterations: 300
       }
     };
 
