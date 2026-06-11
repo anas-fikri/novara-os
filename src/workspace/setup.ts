@@ -14,6 +14,8 @@ export async function runInteractiveSetup(manager: WorkspaceManager): Promise<vo
       { title: "Google Gemini", value: "gemini" },
       { title: "OpenAI", value: "openai" },
       { title: "OpenRouter (Global Gateway)", value: "openrouter" },
+      { title: "GitHub Copilot (OAuth)", value: "copilot" },
+      { title: "Antigravity (OAuth)", value: "antigravity" },
       { title: "Ollama (Lokal)", value: "ollama" },
       { title: "9Router (Lokal Gateway)", value: "9router" },
       { title: "CLIProxy (Proxy)", value: "cliproxy" }
@@ -114,6 +116,9 @@ export async function runInteractiveSetup(manager: WorkspaceManager): Promise<vo
       manager.saveSecret("CLIPROXY_API_KEY", keyResponse.value);
     }
     console.log(chalk.green(`✔ CLIProxy configuration berhasil disimpan!`));
+  } else if (provider === "copilot" || provider === "antigravity") {
+    const { startDeviceFlow } = await import("./oauth.js");
+    await startDeviceFlow(manager, provider);
   }
 
   // Ask to set as default
@@ -238,6 +243,28 @@ export async function runInteractiveSetup(manager: WorkspaceManager): Promise<vo
         initial: "google/gemini-2.5-pro"
       });
       defaultModel = `cliproxy/${modelResponse.value ? modelResponse.value.trim() : "google/gemini-2.5-pro"}`;
+    } else if (provider === "copilot") {
+      const modelResponse = await prompts({
+        type: "select",
+        name: "value",
+        message: "Pilih model GitHub Copilot default:",
+        choices: [
+          { title: "Copilot GPT-4o", value: "copilot/gpt-4o" },
+          { title: "Copilot Claude 3.5 Sonnet", value: "copilot/claude-3.5-sonnet" }
+        ]
+      });
+      defaultModel = modelResponse.value || "copilot/gpt-4o";
+    } else if (provider === "antigravity") {
+      const modelResponse = await prompts({
+        type: "select",
+        name: "value",
+        message: "Pilih model Antigravity default:",
+        choices: [
+          { title: "Agy Gemini 2.5 Pro", value: "antigravity/gemini-2.5-pro" },
+          { title: "Agy Claude 3.5 Sonnet", value: "antigravity/claude-3.5-sonnet" }
+        ]
+      });
+      defaultModel = modelResponse.value || "antigravity/gemini-2.5-pro";
     }
 
     try {

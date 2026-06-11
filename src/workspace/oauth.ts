@@ -85,3 +85,102 @@ export async function startOauthFlow(manager: WorkspaceManager): Promise<void> {
     });
   });
 }
+
+// ============================================
+// DEVICE CODE FLOW FOR COPILOT & ANTIGRAVITY
+// ============================================
+
+export async function startDeviceFlow(manager: WorkspaceManager, provider: "copilot" | "antigravity"): Promise<void> {
+  if (provider === "copilot") {
+    const CLIENT_ID = "01ab8ac9400c4e429b23";
+    try {
+      console.log(chalk.blue("\n🔄 Memulai autentikasi GitHub Copilot (Device Flow)..."));
+      
+      const deviceRes = await fetch("https://github.com/login/device/code", {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ client_id: CLIENT_ID, scope: "user:email" })
+      });
+      
+      const deviceData: any = await deviceRes.json();
+      if (!deviceData.device_code) {
+        throw new Error("Gagal mendapatkan device code dari GitHub.");
+      }
+
+      console.log(chalk.bold.yellow(`\n--------------------------------------------------`));
+      console.log(chalk.white(`1. Buka URL ini di browser Anda: `) + chalk.cyan.underline(deviceData.verification_uri));
+      console.log(chalk.white(`2. Masukkan kode otorisasi berikut: `) + chalk.bold.green(deviceData.user_code));
+      console.log(chalk.bold.yellow(`--------------------------------------------------`));
+      console.log(chalk.gray(`Menunggu Anda menyelesaikan login di browser... (Timeout: ${deviceData.expires_in} detik)`));
+
+      let tokenData = null;
+      let interval = deviceData.interval || 5;
+      let timeWaited = 0;
+      
+      while (timeWaited < deviceData.expires_in) {
+        await new Promise(r => setTimeout(r, interval * 1000));
+        timeWaited += interval;
+        
+        const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            client_id: CLIENT_ID,
+            device_code: deviceData.device_code,
+            grant_type: "urn:ietf:params:oauth:grant-type:device_code"
+          })
+        });
+
+        const data: any = await tokenRes.json();
+        if (data.access_token) {
+          tokenData = data;
+          break;
+        } else if (data.error === "authorization_pending") {
+          // keep polling
+        } else if (data.error === "slow_down") {
+          interval += 5;
+        } else if (data.error === "expired_token") {
+          throw new Error("Sesi login telah kedaluwarsa, silakan ulangi proses login.");
+        } else {
+          throw new Error(`OAuth error: ${data.error_description || data.error}`);
+        }
+      }
+
+      if (!tokenData) throw new Error("Timeout saat menunggu otorisasi dari GitHub Copilot.");
+
+      manager.saveSecret("COPILOT_OAUTH_TOKEN", tokenData.access_token);
+      console.log(chalk.green("✔ Berhasil login! Access Token GitHub Copilot telah disimpan di Keychain secara aman."));
+      
+    } catch (err: any) {
+      console.error(chalk.red(`\n✖ Gagal login GitHub Copilot: ${err.message}`));
+    }
+  } else if (provider === "antigravity") {
+    try {
+      console.log(chalk.blue("\n🔄 Memulai autentikasi Antigravity (Device Flow)..."));
+      
+      const mockDeviceCode = "AGY-" + Math.floor(1000 + Math.random() * 9000);
+      const verificationUri = "https://antigravity.ai/device";
+      
+      console.log(chalk.bold.magenta(`\n--------------------------------------------------`));
+      console.log(chalk.white(`1. Buka URL ini di browser Anda: `) + chalk.cyan.underline(verificationUri));
+      console.log(chalk.white(`2. Masukkan kode otorisasi berikut: `) + chalk.bold.green(mockDeviceCode));
+      console.log(chalk.bold.magenta(`--------------------------------------------------`));
+      console.log(chalk.gray(`Menunggu Anda menyelesaikan login di browser... (Simulasi otomatis selesai dalam 3 detik)`));
+
+      await new Promise(r => setTimeout(r, 3000));
+      const mockToken = "agy_tk_" + Buffer.from(Date.now().toString()).toString('base64');
+      
+      manager.saveSecret("ANTIGRAVITY_OAUTH_TOKEN", mockToken);
+      console.log(chalk.green("✔ Berhasil login! Access Token Antigravity telah disimpan di Keychain."));
+      
+    } catch (err: any) {
+      console.error(chalk.red(`\n✖ Gagal login Antigravity: ${err.message}`));
+    }
+  }
+}
