@@ -578,8 +578,8 @@ program
   ██║ ╚████║╚██████╔╝███████║
   ╚═╝  ╚═══╝ ╚═════╝ ╚══════╝
   `));
-      console.log(chalk.bold.hex("#cba6f7")(`  Novara Operating System (v0.1.0)`));
-      console.log(chalk.gray(`  Workspace-Oriented Intelligence OS`));
+      console.log(chalk.bold.hex("#cba6f7")(`  Novara Orchestrator System (v0.1.0)`));
+      console.log(chalk.gray(`  Workspace-Oriented Intelligence Orchestrator`));
       console.log();
 
       const updateVersion = await orchestrator.checkForUpdates();

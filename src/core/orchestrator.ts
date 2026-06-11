@@ -910,8 +910,15 @@ Instruksi tambahan:
     }
 
     const systemPrompt = this.assembleSystemPrompt(subTaskQuery, agentType);
+    
+    // Inject parent context to prevent context loss
+    const parentSummary = this.getSessionSummary();
+    const enrichedQuery = parentSummary?.rollingText
+      ? `[KONTEKS DARI AGEN UTAMA]\n${parentSummary.rollingText}\n\n[TUGAS ANDA]\n${subTaskQuery}`
+      : subTaskQuery;
+
     const sessionMessages: ChatMessage[] = [
-      { role: "user", content: subTaskQuery }
+      { role: "user", content: enrichedQuery }
     ];
 
     let loop = true;
@@ -1103,7 +1110,7 @@ Instruksi tambahan:
             toolCallId: rawCallsStr
           });
 
-          for (const call of response.toolCalls) {
+          const toolPromises = response.toolCalls.map(async (call) => {
             let result: string;
             try {
               if (call.name === "record_fact") {
@@ -1211,11 +1218,17 @@ Instruksi tambahan:
             } catch (err: any) {
               result = `Error: ${err.message}`;
             }
+            return { name: call.name, content: result };
+          });
 
+          // Wait for all tool executions to finish concurrently
+          const toolResults = await Promise.all(toolPromises);
+          
+          for (const res of toolResults) {
             sessionMessages.push({
               role: "tool",
-              name: call.name,
-              content: result
+              name: res.name,
+              content: res.content
             });
           }
         } else {
