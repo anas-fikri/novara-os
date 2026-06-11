@@ -687,6 +687,8 @@ program
                 "/summary consolidate",
                 "/memory-config",
                 "/memory-config set ",
+                "/grill-me ",
+                "/drill-me ",
                 "/clear",
                 "/cls",
                 "/clear-screen",

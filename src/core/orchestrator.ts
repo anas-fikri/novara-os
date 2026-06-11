@@ -1267,6 +1267,7 @@ Instruksi tambahan:
         console.log(`${chalk.cyan("/scan")}                      - Scan local disk to auto-register MCPs and SSH nodes`);
         console.log(`${chalk.cyan("/queue")}                      - Display background task queue status`);
         console.log(`${chalk.cyan("/queue add <query>")}          - Add a new task to the background API queue`);
+        console.log(`${chalk.cyan("/grill-me [topik]")}             - Mulai sesi interview arsitektur interaktif (drill-me)`);
         console.log(`${chalk.cyan("/summary")}                    - Tampilkan rolling summary sesi aktif`);
         console.log(`${chalk.cyan("/summary consolidate")}        - Paksa buat/update summary sesi sekarang`);
         console.log(`${chalk.cyan("/memory-config")}              - Lihat/ubah konfigurasi memory consolidator`);
@@ -2987,6 +2988,23 @@ Instruksi tambahan:
       case "clear-screen": {
         console.clear();
         console.log(chalk.green("Layar dibersihkan (konteks percakapan tetap dipertahankan)."));
+        break;
+      }
+
+      case "grill-me":
+      case "drill-me": {
+        const topic = args.join(" ");
+        if (!topic) {
+          console.log(chalk.red("Penggunaan: /grill-me <topik atau tujuan yang ingin dibahas>"));
+          break;
+        }
+        console.log(chalk.blue(`\n🕵️ Memulai sesi interview (grill-me) untuk topik: ${chalk.bold(topic)}`));
+        const grillPrompt = `I want to align on a plan and resolve design decisions for the following topic: "${topic}". 
+Please act as an expert interviewer and architect. Your goal is to "grill" me by asking one multiple-choice or open-ended question at a time to clarify my requirements, edge cases, and design choices. 
+Wait for my answer before asking the next question. Do not start any implementation until you have a complete picture. When you feel you have enough information, output a final comprehensive technical specification.`;
+        
+        // Disable guardrail temporarily for this prompt if needed, or let runTask handle it natively.
+        await this.runTask(grillPrompt, true);
         break;
       }
 
