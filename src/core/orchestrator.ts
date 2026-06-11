@@ -4,13 +4,15 @@ import { KnowledgeSystem } from "../knowledge/knowledge.js";
 import { GeminiProvider } from "../provider/gemini.js";
 import { McpClientManager } from "../mcp/mcp-client.js";
 import { runInteractiveSetup } from "../workspace/setup.js";
+import { MemoryConsolidator, ConsolidatorConfig } from "./consolidator.js";
+import { compressHistory } from "./compressor.js";
 import prompts from "prompts";
 import chalk from "chalk";
 import ora from "ora";
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { execSync } from "child_process";
+import { execSync, spawn } from "child_process";
 import https from "https";
 import http from "http";
 
@@ -21,7 +23,9 @@ export class CoreOrchestrator {
   private mcpManager!: McpClientManager;
   private provider!: GeminiProvider;
   private config!: WorkspaceConfig;
+  private consolidator!: MemoryConsolidator;
   private openRouterModels: Array<{ id: string; name: string }> = [];
+  private sessionTurnCount: number = 0;
 
   constructor(workspaceDir: string = process.cwd()) {
     this.workspaceManager = new WorkspaceManager(workspaceDir);
@@ -75,6 +79,16 @@ export class CoreOrchestrator {
     this.mcpManager = new McpClientManager();
     this.provider = new GeminiProvider(this.config.provider.default);
 
+    // Initialize Memory Consolidator with workspace-level config if present
+    const consolidatorConfig = (this.config as any).memory_consolidator as Partial<ConsolidatorConfig> | undefined;
+    this.consolidator = new MemoryConsolidator(
+      this.workspaceManager.getMemoryDir(),
+      consolidatorConfig || {}
+    );
+
+    // Restore session turn count from existing message count
+    this.sessionTurnCount = Math.floor(this.memorySystem.getMessageCount() / 2);
+
     // Boot MCP Servers
     if (this.config.mcp_servers && this.config.mcp_servers.length > 0) {
       const spinner = ora("Memulai MCP Servers...").start();
@@ -88,6 +102,33 @@ export class CoreOrchestrator {
     this.fetchOpenRouterModels().then((models) => {
       this.openRouterModels = models;
     }).catch(() => {});
+  }
+
+  /**
+   * Get the current session summary (for display or injection)
+   */
+  getSessionSummary(): import("./consolidator.js").SessionSummary | null {
+    if (!this.consolidator) return null;
+    const s = this.consolidator.loadSummary(this.memorySystem.getActiveSession());
+    return s.turnCount > 0 ? s : null;
+  }
+
+  /**
+   * Trigger immediate (synchronous) consolidation — used on /exit
+   */
+  async consolidateSessionNow(): Promise<import("./consolidator.js").SessionSummary | null> {
+    if (!this.consolidator || this.sessionTurnCount < 1) return null;
+    const history = this.memorySystem.getRecentHistory(20);
+    try {
+      return await this.consolidator.consolidateNow(
+        this.memorySystem.getActiveSession(),
+        history,
+        this.provider,
+        this.sessionTurnCount
+      );
+    } catch {
+      return null;
+    }
   }
 
   private isMutativeTool(toolName: string): boolean {
@@ -117,6 +158,15 @@ export class CoreOrchestrator {
       ? `\n[Relevant Local Knowledge Documents]:\n` + searchResults.map((r) => `--- File: ${r.filePath} ---\n${r.snippet}`).join("\n\n")
       : "";
 
+    // Inject rolling session summary if available (token-efficient context continuity)
+    let summaryStr = "";
+    if (this.consolidator && !agentType) { // Only for main agent, not sub-agents
+      const summary = this.consolidator.loadSummary(this.memorySystem.getActiveSession());
+      if (summary.rollingText) {
+        summaryStr = `\n[Ringkasan Sesi Sebelumnya (${summary.sessionName}, giliran ke-${summary.turnCount})]:\n${summary.rollingText}\nTag: ${summary.tags.join(", ")} | Domain: ${summary.domain}`;
+      }
+    }
+
     let roleDescription = `Anda adalah Novara OS, sebuah Workspace-Oriented Intelligence Operating System.
 Misi Anda adalah membantu pengguna mengelola kode, dokumentasi, server, dan alur kerja dalam workspace ini.`;
 
@@ -141,7 +191,7 @@ Tugas Anda adalah membantu koordinasi tugas umum dan merespons pertanyaan bantua
     return `${roleDescription}
 
 ${langInstructions}
-
+${summaryStr}
 ${factsStr}
 ${knowledgeStr}
 
@@ -153,10 +203,25 @@ Instruksi tambahan:
   }
 
   async runTask(userQuery: string, interactive: boolean = false, agentType?: string): Promise<string> {
+    // ── Guardrail check (domain prompt restriction) ──────────────────────────
+    if (this.consolidator && !agentType) {
+      const guardrailWarning = this.consolidator.checkGuardrail(userQuery);
+      if (guardrailWarning) {
+        console.log(chalk.hex("#f9e2af")(guardrailWarning));
+      }
+    }
+
     const systemPrompt = this.assembleSystemPrompt(userQuery, agentType);
     
     // Load recent chat history
-    const history = this.memorySystem.getRecentHistory(20);
+    let history = this.memorySystem.getRecentHistory(20);
+
+    // ── Context compression if history is token-heavy (>= 4000 tokens) ───────
+    const TOKEN_BUDGET = 4000;
+    const historyTokens = history.reduce((sum, m) => sum + Math.ceil((m.content || "").length / 4), 0);
+    if (historyTokens > TOKEN_BUDGET) {
+      history = compressHistory(history, TOKEN_BUDGET, 6) as ChatMessage[];
+    }
     
     // Add current user query to execution context
     const sessionMessages: ChatMessage[] = [
@@ -184,7 +249,7 @@ Instruksi tambahan:
       const nativeTools = [
         {
           name: "record_fact",
-          description: "Menyimpan fakta atau preferensi pengguna ke memori jangka panjang secara otomatis dari percakapan.",
+          description: "Menyimpan fakta atau preferensi pengguna ke memori jangka panjang secara otomatis dari percakapan. GUARDRAIL: HANYA catat preferensi/fakta permanen (misal: OS, arsitektur, standar kode). DILARANG KERAS merekam status debugging, error sementara, atau log eksekusi.",
           inputSchema: {
             type: "object",
             properties: {
@@ -342,11 +407,11 @@ Instruksi tambahan:
         },
         {
           name: "delegate_task",
-          description: "Mendelegasikan sub-tugas tertentu ke sub-agent khusus (seperti 'infrastructure', 'research', atau 'coder') dan mendapatkan laporan hasilnya.",
+          description: "Mendelegasikan sub-tugas tertentu ke sub-agent khusus (seperti 'infrastructure', 'research', 'coder', atau 'hermes') dan mendapatkan laporan hasilnya.",
           inputSchema: {
             type: "object",
             properties: {
-              agentType: { type: "string", description: "Tipe sub-agent (pilihan: infrastructure, research, coder, general)" },
+              agentType: { type: "string", description: "Tipe sub-agent (pilihan: infrastructure, research, coder, general, hermes)" },
               subTaskQuery: { type: "string", description: "Deskripsi tugas spesifik yang harus diselesaikan sub-agent" }
             },
             required: ["agentType", "subTaskQuery"]
@@ -394,37 +459,113 @@ Instruksi tambahan:
             // Security gatekeep for mutative tools (ignore native tools from manual gatekeeping)
             const isNative = ["record_fact", "record_knowledge", "record_skill", "delegate_task"].includes(call.name);
             if (interactive && this.isMutativeTool(call.name) && !isNative) {
-              console.log(chalk.bold.red("🚨 Alat ini memodifikasi workspace Anda. Memerlukan persetujuan."));
-              const approval = await prompts({
-                type: "select",
-                name: "action",
-                message: `Izinkan eksekusi '${call.name}'?`,
-                choices: [
-                  { title: "Ya (Setujui)", value: "yes" },
-                  { title: "Tidak (Tolak)", value: "no" },
-                  { title: "Steer (Beri Koreksi)", value: "steer" },
-                  { title: "Keluar (Batalkan Tugas)", value: "quit" }
-                ],
-                initial: 0
-              });
+              let approved = false;
+              let filePath = call.args?.path || call.args?.filePath || call.args?.targetFile || call.args?.file || "";
+              let fileContent = call.args?.content || call.args?.codeContent || call.args?.replacementContent || "";
 
-              if (approval.action === "yes") {
-                execute = true;
-              } else if (approval.action === "steer") {
-                execute = false;
-                const steerPrompt = await prompts({
-                  type: "text",
-                  name: "feedback",
-                  message: "Masukkan instruksi koreksi/steering Anda:"
+              while (!approved) {
+                console.log(chalk.bold.hex("#f38ba8")("\n🚨 Persetujuan Diperlukan untuk Alat Mutatif:"));
+                console.log(`   Alat    : ${chalk.cyan(call.name)}`);
+                if (filePath) {
+                  console.log(`   Berkas  : ${chalk.yellow(filePath)}`);
+                }
+
+                const choices = [
+                  { title: "Ya (Setujui Eksekusi)", value: "yes" },
+                  { title: "Tidak (Tolak Eksekusi)", value: "no" }
+                ];
+
+                if (fileContent) {
+                  choices.push(
+                    { title: "🔍 Lihat Pratinjau Isi (Preview)", value: "preview" },
+                    { title: "✏️  Edit Isi Sebelum Disetujui (Modify)", value: "edit" }
+                  );
+                }
+
+                choices.push(
+                  { title: "Steer (Beri Koreksi Kustom)", value: "steer" },
+                  { title: "Keluar (Batalkan Seluruh Tugas)", value: "quit" }
+                );
+
+                const approval = await prompts({
+                  type: "select",
+                  name: "action",
+                  message: `Pilih aksi untuk '${call.name}':`,
+                  choices,
+                  initial: 0
                 });
-                result = `Execution steered/rejected by user: "${steerPrompt.feedback || "Tidak ada feedback"}". Please adjust your plan/strategy accordingly.`;
-              } else if (approval.action === "quit") {
-                execute = false;
-                result = "Execution rejected by user. Task aborted.";
-                loop = false;
-              } else {
-                execute = false;
-                result = "Execution rejected by user.";
+
+                if (approval.action === "yes") {
+                  execute = true;
+                  approved = true;
+                } else if (approval.action === "no") {
+                  execute = false;
+                  result = "Execution rejected by user.";
+                  approved = true;
+                } else if (approval.action === "preview") {
+                  console.log(chalk.bold.green("\n--- PRATINJAU ISI BERKAS ---"));
+                  const lines = fileContent.split("\n");
+                  const padding = String(lines.length).length;
+                  lines.forEach((line: string, index: number) => {
+                    console.log(`${chalk.gray(String(index + 1).padStart(padding, " "))} | ${line}`);
+                  });
+                  console.log(chalk.bold.green("----------------------------\n"));
+                  await prompts({
+                    type: "text",
+                    name: "ok",
+                    message: "Tekan Enter untuk kembali ke menu persetujuan..."
+                  });
+                } else if (approval.action === "edit") {
+                  const tempDir = os.tmpdir();
+                  const tempFileName = `novara-edit-${Date.now()}-${path.basename(filePath || "temp.txt")}`;
+                  const tempFilePath = path.join(tempDir, tempFileName);
+
+                  fs.writeFileSync(tempFilePath, fileContent, "utf-8");
+
+                  const editor = process.env.EDITOR || process.env.VISUAL || (process.platform === "win32" ? "notepad" : "nano");
+                  console.log(chalk.blue(`\nMembuka editor: ${editor} untuk mengedit berkas...`));
+
+                  await new Promise<void>((resolve) => {
+                    const child = spawn(editor, [tempFilePath], { stdio: "inherit", shell: true });
+                    child.on("exit", () => resolve());
+                    child.on("error", (err) => {
+                      console.log(chalk.red(`Gagal menjalankan editor '${editor}': ${err.message}`));
+                      resolve();
+                    });
+                  });
+
+                  if (fs.existsSync(tempFilePath)) {
+                    const updatedContent = fs.readFileSync(tempFilePath, "utf-8");
+
+                    if (call.args.content !== undefined) call.args.content = updatedContent;
+                    else if (call.args.codeContent !== undefined) call.args.codeContent = updatedContent;
+                    else if (call.args.replacementContent !== undefined) call.args.replacementContent = updatedContent;
+
+                    fileContent = updatedContent;
+                    console.log(chalk.green("✔ Isi berkas berhasil diperbarui!"));
+                    try {
+                      fs.unlinkSync(tempFilePath);
+                    } catch {}
+                  }
+                } else if (approval.action === "steer") {
+                  execute = false;
+                  const steerPrompt = await prompts({
+                    type: "text",
+                    name: "feedback",
+                    message: "Masukkan instruksi koreksi/steering Anda:"
+                  });
+                  result = `Execution steered/rejected by user: "${steerPrompt.feedback || "Tidak ada feedback"}". Please adjust your plan/strategy accordingly.`;
+                  approved = true;
+                } else if (approval.action === "quit") {
+                  execute = false;
+                  result = "Execution rejected by user. Task aborted.";
+                  loop = false;
+                  approved = true;
+                } else {
+                  execute = false;
+                  result = "Execution rejected by user.";
+                  approved = true;
+                }
               }
             }
             if (execute) {
@@ -733,10 +874,41 @@ Instruksi tambahan:
     if (iterations >= maxIterations) {
       console.log(chalk.yellow("\n[Novara OS] Batas iterasi maksimum tercapai. Tugas dihentikan."));
     }
+
+    // ── Background memory consolidation (non-blocking) ───────────────────────
+    if (!agentType && this.consolidator) {
+      this.sessionTurnCount++;
+      const recentForConsolidation = this.memorySystem.getRecentHistory(16);
+      this.consolidator.consolidateInBackground(
+        this.memorySystem.getActiveSession(),
+        recentForConsolidation,
+        this.provider,
+        this.sessionTurnCount
+      ).catch(() => {}); // Fire and forget, silent failure
+    }
+
     return lastResponseText || "Tugas diselesaikan tanpa output laporan.";
   }
 
   async runSubAgentTask(subTaskQuery: string, agentType: string): Promise<string> {
+    if (agentType === "hermes") {
+      const hermesUrl = process.env.HERMES_API_URL || "http://localhost:8316/v1/agent/run";
+      try {
+        const response = await fetch(hermesUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: subTaskQuery, sender: "novara-os" })
+        });
+        if (!response.ok) {
+          throw new Error(`Hermes API returned status ${response.status}`);
+        }
+        const data = await response.json() as any;
+        return data.result || data.response || data.output || JSON.stringify(data);
+      } catch (err: any) {
+        throw new Error(`Gagal menghubungi sub-agent Hermes di ${hermesUrl}: ${err.message}`);
+      }
+    }
+
     const systemPrompt = this.assembleSystemPrompt(subTaskQuery, agentType);
     const sessionMessages: ChatMessage[] = [
       { role: "user", content: subTaskQuery }
@@ -1082,11 +1254,126 @@ Instruksi tambahan:
         console.log(`${chalk.cyan("/scan")}                      - Scan local disk to auto-register MCPs and SSH nodes`);
         console.log(`${chalk.cyan("/queue")}                      - Display background task queue status`);
         console.log(`${chalk.cyan("/queue add <query>")}          - Add a new task to the background API queue`);
+        console.log(`${chalk.cyan("/summary")}                    - Tampilkan rolling summary sesi aktif`);
+        console.log(`${chalk.cyan("/summary consolidate")}        - Paksa buat/update summary sesi sekarang`);
+        console.log(`${chalk.cyan("/memory-config")}              - Lihat/ubah konfigurasi memory consolidator`);
         console.log(`${chalk.cyan("/clear")}                     - Clear chat conversation history for the active session`);
         console.log(`${chalk.cyan("/cls")} or ${chalk.cyan("/clear-screen")}    - Clear terminal console screen`);
         console.log(`${chalk.cyan("/exit")} or ${chalk.cyan("/quit")}           - Exit the interactive session`);
         console.log("=================================\n");
         break;
+
+      case "summary": {
+        const subCmd = args[0];
+        if (subCmd === "consolidate") {
+          const spinner = ora("Membuat summary sesi...").start();
+          try {
+            const summary = await this.consolidateSessionNow();
+            spinner.stop();
+            if (summary) {
+              console.log(chalk.green("\n✔ Summary sesi berhasil diperbarui:"));
+              console.log(chalk.hex("#cba6f7")("┌" + "─".repeat(60) + "┐"));
+              console.log(chalk.hex("#cba6f7")("│") + chalk.bold(" 📋 Rolling Summary") + " ".repeat(40) + chalk.hex("#cba6f7")("│"));
+              console.log(chalk.hex("#cba6f7")("├" + "─".repeat(60) + "┤"));
+              const lines = summary.rollingText.split("\n");
+              for (const line of lines) {
+                console.log(chalk.hex("#cba6f7")("│") + " " + chalk.white(line.slice(0, 58).padEnd(58)) + chalk.hex("#cba6f7")("│"));
+              }
+              if (summary.tags.length > 0) {
+                console.log(chalk.hex("#cba6f7")("├" + "─".repeat(60) + "┤"));
+                console.log(chalk.hex("#cba6f7")("│") + chalk.gray(` 🏷️  Tags: ${summary.tags.join(", ")} | Domain: ${summary.domain}`) + chalk.hex("#cba6f7")("│"));
+              }
+              if (summary.keyDecisions.length > 0) {
+                console.log(chalk.hex("#cba6f7")("├" + "─".repeat(60) + "┤"));
+                console.log(chalk.hex("#cba6f7")("│") + chalk.bold.yellow(" ⚡ Key Changes:") + " ".repeat(44) + chalk.hex("#cba6f7")("│"));
+                for (const d of summary.keyDecisions) {
+                  console.log(chalk.hex("#cba6f7")("│") + " • " + chalk.cyan(d.slice(0, 56).padEnd(56)) + chalk.hex("#cba6f7")("│"));
+                }
+              }
+              console.log(chalk.hex("#cba6f7")("└" + "─".repeat(60) + "┘\n"));
+            } else {
+              console.log(chalk.yellow("Belum ada cukup percakapan untuk di-summarize (min 3 giliran)."));
+            }
+          } catch (e: any) {
+            spinner.fail(`Gagal membuat summary: ${e.message}`);
+          }
+        } else {
+          // Display current summary
+          const summary = this.getSessionSummary();
+          if (!summary || !summary.rollingText) {
+            console.log(chalk.yellow("\nBelum ada summary untuk sesi ini. Jalankan '/summary consolidate' untuk membuatnya."));
+          } else {
+            console.log(chalk.green("\n=== Session Memory Summary ==="));
+            console.log(chalk.bold(`Sesi: ${summary.sessionName} | Giliran: ${summary.turnCount} | Update: ${new Date(summary.lastUpdated).toLocaleString("id-ID")}`));
+            console.log(chalk.hex("#cba6f7")("─".repeat(60)));
+            console.log(chalk.white(summary.rollingText));
+            if (summary.tags.length > 0) {
+              console.log(chalk.gray(`\n🏷️  Tags: ${summary.tags.join(", ")} | Domain: ${summary.domain}`));
+            }
+            if (summary.keyDecisions.length > 0) {
+              console.log(chalk.yellow("\n⚡ Key decisions/changes:"));
+              for (const d of summary.keyDecisions) {
+                console.log(chalk.cyan(`  • ${d}`));
+              }
+            }
+            console.log();
+          }
+        }
+        break;
+      }
+
+      case "memory-config": {
+        if (!this.consolidator) {
+          console.log(chalk.red("Consolidator tidak aktif."));
+          break;
+        }
+        const cfg = this.consolidator.getConfig();
+        if (args.length === 0) {
+          // Display current config
+          console.log(chalk.green("\n=== Memory Consolidator Config ==="));
+          console.log(`  Auto Summary      : ${cfg.enableAutoSummary ? chalk.green("aktif") : chalk.red("nonaktif")}`);
+          console.log(`  Target Tokens     : ${chalk.yellow(cfg.targetSummaryTokens.toString())} (ringkasan maks ~${Math.floor(cfg.targetSummaryTokens * 0.75)} kata)`);
+          console.log(`  Min Turns         : ${chalk.yellow(cfg.minTurnsBeforeSummary.toString())} giliran sebelum summarize`);
+          console.log(`  Guardrail Domains : ${cfg.guardrailDomains.length > 0 ? chalk.yellow(cfg.guardrailDomains.join(", ")) : chalk.gray("tidak dibatasi (semua domain)")}`); 
+          console.log(chalk.gray("\nGunakan '/memory-config set <key> <value>' untuk mengubah"));
+          console.log(chalk.gray("Keys: auto-summary, target-tokens, min-turns, domains"));
+          console.log();
+        } else if (args[0] === "set") {
+          const key = args[1];
+          const value = args.slice(2).join(" ");
+          if (!key || !value) {
+            console.log(chalk.red("Penggunaan: /memory-config set <key> <value>"));
+            break;
+          }
+          if (key === "auto-summary") {
+            this.consolidator.updateConfig({ enableAutoSummary: value === "true" || value === "aktif" });
+            console.log(chalk.green(`✔ auto-summary diset ke: ${value}`));
+          } else if (key === "target-tokens") {
+            const n = parseInt(value);
+            if (!isNaN(n) && n > 50) {
+              this.consolidator.updateConfig({ targetSummaryTokens: n });
+              console.log(chalk.green(`✔ target-tokens diset ke: ${n}`));
+            } else {
+              console.log(chalk.red("Nilai harus angka > 50"));
+            }
+          } else if (key === "min-turns") {
+            const n = parseInt(value);
+            if (!isNaN(n) && n >= 1) {
+              this.consolidator.updateConfig({ minTurnsBeforeSummary: n });
+              console.log(chalk.green(`✔ min-turns diset ke: ${n}`));
+            } else {
+              console.log(chalk.red("Nilai harus angka >= 1"));
+            }
+          } else if (key === "domains") {
+            const domains = value.split(",").map(d => d.trim()).filter(Boolean);
+            this.consolidator.updateConfig({ guardrailDomains: domains });
+            console.log(chalk.green(`✔ Guardrail domains diset ke: ${domains.join(", ") || "(tidak dibatasi)"}`))
+          } else {
+            console.log(chalk.red(`Key tidak dikenal: ${key}. Gunakan: auto-summary, target-tokens, min-turns, domains`));
+          }
+        }
+        break;
+      }
 
       case "queue":
         if (args[0] === "add") {
@@ -1440,7 +1727,7 @@ Instruksi tambahan:
         const nativeTools = [
           {
             name: "record_fact",
-            description: "Menyimpan fakta atau preferensi pengguna ke memori jangka panjang secara otomatis dari percakapan.",
+            description: "Menyimpan fakta atau preferensi pengguna ke memori jangka panjang secara otomatis dari percakapan. GUARDRAIL: HANYA catat preferensi/fakta permanen (misal: OS, arsitektur, standar kode). DILARANG KERAS merekam status debugging, error sementara, atau log eksekusi.",
             serverName: "Native System",
             inputSchema: {
               type: "object",

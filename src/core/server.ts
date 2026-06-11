@@ -39,6 +39,23 @@ export class ApiServer {
       const url = new URL(req.url || "", `http://localhost:${this.port}`);
       
       try {
+        // 0. GET / - Status info
+        if (url.pathname === "/" && req.method === "GET") {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            name: "Novara OS API Server",
+            status: "online",
+            workspace: this.activeWorkspaceDir,
+            endpoints: [
+              "GET /v1/tasks",
+              "POST /v1/workspace/select",
+              "POST /v1/agent/run",
+              "POST /v1/acp/run"
+            ]
+          }, null, 2));
+          return;
+        }
+
         // 1. GET /v1/tasks - List task queue
         if (url.pathname === "/v1/tasks" && req.method === "GET") {
           res.writeHead(200, { "Content-Type": "application/json" });
@@ -109,7 +126,57 @@ export class ApiServer {
           return;
         }
 
-        // 4. Default 404
+        // 4. POST /v1/acp/run - Synchronous ACP task runner for external agents (like Hermes)
+        if (url.pathname === "/v1/acp/run" && req.method === "POST") {
+          const body = await this.readBody(req);
+          const { query, sender, agentType } = JSON.parse(body);
+          if (!query) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Parameter 'query' diperlukan." }));
+            return;
+          }
+
+          console.log(chalk.cyan(`\n[ACP Server] Menerima tugas sinkron dari ${sender || "Hermes"} [Agent: ${agentType || "default"}]: "${query}"`));
+
+          const orchestrator = new CoreOrchestrator(this.activeWorkspaceDir);
+          try {
+            await orchestrator.init();
+            
+            let lastReport = "";
+            const originalSave = orchestrator["memorySystem"].saveMessage;
+            
+            // Intercept saveMessage to catch agent replies
+            orchestrator["memorySystem"].saveMessage = (msg) => {
+              if (msg.role === "model") {
+                lastReport = msg.content;
+              }
+              originalSave.call(orchestrator["memorySystem"], msg);
+            };
+
+            await orchestrator.runTask(query, false, agentType);
+            
+            console.log(chalk.green(`✔ [ACP Server] Tugas sinkron sukses diselesaikan!`));
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({
+              success: true,
+              result: lastReport || "Tugas diselesaikan tanpa output laporan.",
+              status: "completed"
+            }));
+          } catch (err: any) {
+            console.error(chalk.red(`❌ [ACP Server] Tugas sinkron gagal: ${err.message}`));
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({
+              success: false,
+              error: err.message,
+              status: "failed"
+            }));
+          } finally {
+            await orchestrator.shutdown();
+          }
+          return;
+        }
+
+        // 5. Default 404
         res.writeHead(404, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Endpoint tidak ditemukan." }));
       } catch (err: any) {
@@ -126,6 +193,7 @@ export class ApiServer {
       console.log(`  • ${chalk.yellow("GET  /v1/tasks")}            - Monitor status & antrean tugas`);
       console.log(`  • ${chalk.yellow("POST /v1/workspace/select")} - Ganti workspace aktif`);
       console.log(`  • ${chalk.yellow("POST /v1/agent/run")}        - Kirim tugas/query ke antrean agent`);
+      console.log(`  • ${chalk.yellow("POST /v1/acp/run")}          - Tugas sinkron untuk agent Hermes (ACP)`);
       console.log(chalk.gray("--------------------------------------------------\n"));
     });
   }

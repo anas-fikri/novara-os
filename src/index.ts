@@ -10,7 +10,7 @@ import { startOauthFlow } from "./workspace/oauth.js";
 import { runInteractiveSetup } from "./workspace/setup.js";
 import readline from "readline";
 import { ApiServer } from "./core/server.js";
-import { execSync } from "child_process";
+import { execSync, spawn } from "child_process";
 import os from "os";
 
 const program = new Command();
@@ -369,6 +369,9 @@ program
   .command("serve")
   .description("Mulai REST API server untuk memproses antrean tugas (task queue)")
   .option("-p, --port <number>", "Port server API (default: 8088)", "8088")
+  .option("-d, --daemon", "Jalankan server sebagai background service (detached)")
+  .option("--stop", "Hentikan daemon server yang sedang berjalan")
+  .option("--status", "Cek status daemon server")
   .action((options) => {
     const manager = new WorkspaceManager();
     if (!manager.isWorkspace()) {
@@ -377,9 +380,141 @@ program
     }
 
     const port = parseInt(options.port, 10) || 8088;
+    const pidFile = path.join(manager.getWorkspaceDir(), "server.pid");
+    const logFile = path.join(manager.getWorkspaceDir(), "server.log");
+
+    // ── Helper: baca PID dari file ──────────────────────────────────────────
+    const readPid = (): number | null => {
+      if (!fs.existsSync(pidFile)) return null;
+      try {
+        const raw = fs.readFileSync(pidFile, "utf-8").trim();
+        const pid = parseInt(raw, 10);
+        return isNaN(pid) ? null : pid;
+      } catch {
+        return null;
+      }
+    };
+
+    // ── Helper: cek apakah proses dengan PID ini masih hidup ───────────────
+    const isProcessAlive = (pid: number): boolean => {
+      try {
+        process.kill(pid, 0); // Signal 0 = hanya cek, tidak kill
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    // ── --status: cek status daemon ────────────────────────────────────────
+    if (options.status) {
+      const pid = readPid();
+      if (!pid) {
+        console.log(chalk.yellow("⏹  Daemon tidak berjalan (PID file tidak ditemukan)."));
+        return;
+      }
+      if (isProcessAlive(pid)) {
+        console.log(chalk.green(`✔ Daemon aktif — PID: ${chalk.bold(pid.toString())}, Port: ${port}`));
+        console.log(chalk.gray(`   Log: ${logFile}`));
+        console.log(chalk.gray(`   Gunakan 'nos serve --stop' untuk menghentikan.`));
+      } else {
+        console.log(chalk.yellow(`⚠  PID ${pid} tidak aktif. Daemon mungkin sudah berhenti.`));
+        try { fs.unlinkSync(pidFile); } catch {}
+      }
+      return;
+    }
+
+    // ── --stop: hentikan daemon ────────────────────────────────────────────
+    if (options.stop) {
+      const pid = readPid();
+      if (!pid) {
+        console.log(chalk.yellow("⏹  Tidak ada daemon yang berjalan (PID file tidak ditemukan)."));
+        return;
+      }
+      if (!isProcessAlive(pid)) {
+        console.log(chalk.yellow(`⚠  Proses PID ${pid} sudah tidak berjalan. Membersihkan PID file...`));
+        try { fs.unlinkSync(pidFile); } catch {}
+        return;
+      }
+      try {
+        process.kill(pid, "SIGTERM"); // Graceful stop
+        // Tunggu sebentar lalu verifikasi
+        setTimeout(() => {
+          if (!isProcessAlive(pid)) {
+            try { fs.unlinkSync(pidFile); } catch {}
+            console.log(chalk.green(`✔ Daemon (PID: ${pid}) berhasil dihentikan.`));
+          } else {
+            // Paksa kill jika masih hidup
+            try {
+              process.kill(pid, "SIGKILL");
+              try { fs.unlinkSync(pidFile); } catch {}
+              console.log(chalk.green(`✔ Daemon (PID: ${pid}) dihentikan paksa (SIGKILL).`));
+            } catch (e: any) {
+              console.log(chalk.red(`Gagal menghentikan daemon: ${e.message}`));
+            }
+          }
+        }, 1500);
+      } catch (e: any) {
+        console.log(chalk.red(`Gagal mengirim sinyal ke PID ${pid}: ${e.message}`));
+        // Bersihkan PID file yang stale
+        if (!isProcessAlive(pid)) {
+          try { fs.unlinkSync(pidFile); } catch {}
+        }
+      }
+      return;
+    }
+
+    // ── --daemon: jalankan di background ──────────────────────────────────
+    if (options.daemon) {
+      // Cek apakah daemon sudah berjalan
+      const existingPid = readPid();
+      if (existingPid && isProcessAlive(existingPid)) {
+        console.log(chalk.yellow(`⚠  Daemon sudah berjalan dengan PID: ${existingPid}`));
+        console.log(chalk.gray(`   Gunakan 'nos serve --stop' untuk menghentikan dulu.`));
+        return;
+      }
+
+      const out = fs.openSync(logFile, "a");
+      const err = fs.openSync(logFile, "a");
+
+      const child = spawn(process.argv[0], [process.argv[1], "serve", "-p", port.toString()], {
+        detached: true,
+        stdio: ["ignore", out, err]
+      });
+
+      // Simpan PID ke file agar bisa di-stop nanti
+      try {
+        fs.writeFileSync(pidFile, child.pid!.toString(), "utf-8");
+      } catch {}
+
+      child.unref();
+
+      console.log(chalk.green(`✔ Novara OS API Server berjalan sebagai background service (Daemon) di port ${port}`));
+      console.log(chalk.gray(`   PID     : ${chalk.bold(child.pid!.toString())}`));
+      console.log(chalk.gray(`   Log     : ${logFile}`));
+      console.log(chalk.gray(`   PID file: ${pidFile}`));
+      console.log(chalk.hex("#a6e3a1")(`\n   Untuk menghentikan  → nos serve --stop`));
+      console.log(chalk.hex("#a6e3a1")(`   Untuk cek status   → nos serve --status`));
+      return;
+    }
+
+    // ── Mode normal (foreground) ───────────────────────────────────────────
+    // Simpan PID proses ini sendiri agar bisa di-stop dari terminal lain
+    try {
+      fs.writeFileSync(pidFile, process.pid.toString(), "utf-8");
+    } catch {}
+
+    // Bersihkan PID file saat proses selesai
+    const cleanupPid = () => {
+      try { if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile); } catch {}
+    };
+    process.on("exit", cleanupPid);
+    process.on("SIGINT", () => { cleanupPid(); process.exit(0); });
+    process.on("SIGTERM", () => { cleanupPid(); process.exit(0); });
+
     const server = new ApiServer(port, manager.getWorkspaceDir());
     server.start();
   });
+
 
 // Command: Workspace Info
 program
@@ -435,14 +570,17 @@ program
       const manager = new WorkspaceManager();
       const config = manager.loadConfig();
 
-      console.log(chalk.cyan(`
-   _  _                     _    ___  ___ 
-  | \\| |___ _  _ __ _ _ _ __ _   / _ \\/ __|
-  | .\` / _ \\ || / _\` | '_/ _\` | | (_) \\__ \\
-  |_|\\_\\___/\\_,_\\__,_|_| \\__,_|  \\___/|___/
-  
-  ${chalk.bold("Workspace-Oriented Intelligence OS")} (v0.1.0)
-      `));
+      console.log(chalk.bold.hex("#89b4fa")(`
+  ███╗   ██╗ ██████╗ ███████╗
+  ████╗  ██║██╔═══██╗██╔════╝
+  ██╔██╗ ██║██║   ██║███████╗
+  ██║╚██╗██║██║   ██║╚════██║
+  ██║ ╚████║╚██████╔╝███████║
+  ╚═╝  ╚═══╝ ╚═════╝ ╚══════╝
+  `));
+      console.log(chalk.bold.hex("#cba6f7")(`  Novara Operating System (v0.1.0)`));
+      console.log(chalk.gray(`  Workspace-Oriented Intelligence OS`));
+      console.log();
 
       const updateVersion = await orchestrator.checkForUpdates();
       if (updateVersion) {
@@ -467,25 +605,30 @@ program
 
       // Beautiful status box rendered inline above the prompt line
       const drawStatusBox = () => {
-        const cols = Math.min(process.stdout.columns || 80, 80);
+        const cols = process.stdout.columns || 80;
         const activeModel = orchestrator.getModel();
         const activeSession = orchestrator.getActiveSession();
+        
+        const stripAnsi = (str: string) => str.replace(/\x1b\[[0-9;]*m/g, "");
+        
         // Title headers
-        const titleLeft = ` Workspace: ${chalk.green(activeWorkspace)} | Session: ${chalk.magenta(activeSession)} `;
+        const titleLeftRaw = ` Workspace: ${config.name} | Session: ${activeSession} `;
+        const titleRightRaw = ` Model: ${activeModel} `;
+        const titleLeft = ` Workspace: ${chalk.green(config.name)} | Session: ${chalk.magenta(activeSession)} `;
         const titleRight = ` Model: ${chalk.yellow(activeModel)} `;
         
         // Calculate borders
         const borderChar = "─";
-        const topMidLen = cols - titleLeft.length - titleRight.length - 4;
-        const topBorder = chalk.hex("#cba6f7")("┌" + titleLeft + borderChar.repeat(Math.max(0, topMidLen)) + titleRight + "┐");
+        const topMidLen = cols - titleLeftRaw.length - titleRightRaw.length - 2;
+        const topBorder = chalk.hex("#cba6f7")("┌") + titleLeft + chalk.hex("#cba6f7")(borderChar.repeat(Math.max(0, topMidLen))) + titleRight + chalk.hex("#cba6f7")("┐");
         
         // Tip details
         const tipText = ` 💡 Tips: ${activeTip}`;
-        const padSize = Math.max(0, cols - tipText.length - 3);
+        const padSize = Math.max(0, cols - stripAnsi(tipText).length - 2);
         const insideLine = chalk.hex("#cba6f7")("│") + chalk.hex("#a6adc8")(tipText) + " ".repeat(padSize) + chalk.hex("#cba6f7")("│");
         
         // Bottom border
-        const bottomBorder = chalk.hex("#cba6f7")("└" + borderChar.repeat(cols - 2) + "┘");
+        const bottomBorder = chalk.hex("#cba6f7")("└" + borderChar.repeat(Math.max(0, cols - 2)) + "┘");
 
         // Print status box directly
         console.log(topBorder);
@@ -540,6 +683,10 @@ program
                 "/scan",
                 "/queue",
                 "/queue add ",
+                "/summary",
+                "/summary consolidate",
+                "/memory-config",
+                "/memory-config set ",
                 "/clear",
                 "/cls",
                 "/clear-screen",
@@ -608,6 +755,10 @@ program
         });
 
         const askQuestion = (query: string) => new Promise<string>((resolve) => {
+          rl.on("SIGINT", () => {
+            // If user presses CTRL+C, we clear the chatbox by returning the clear command
+            resolve("/cls");
+          });
           rl.question(query, (answer) => {
             resolve(answer);
           });
@@ -624,11 +775,56 @@ program
 
         if (msg.toLowerCase() === "exit" || msg.toLowerCase() === "quit" || msg === "/exit" || msg === "/quit" || msg === "\\exit" || msg === "\\quit") {
           chatActive = false;
-          console.log(chalk.green("Keluar dari sesi chat. Sampai jumpa!"));
+          // ── Auto-consolidation on exit: show session summary report ──────────
+          const exitSpinner = ora(chalk.hex("#cba6f7")("Menyimpan ringkasan sesi...")).start();
+          try {
+            const exitSummary = await orchestrator.consolidateSessionNow();
+            exitSpinner.stop();
+            if (exitSummary && exitSummary.rollingText) {
+              console.log(chalk.hex("#cba6f7")("\n┌" + "─".repeat(62) + "┐"));
+              console.log(chalk.hex("#cba6f7")("│") + chalk.bold("  🧠 Ringkasan Sesi: " + exitSummary.sessionName.padEnd(44)) + chalk.hex("#cba6f7")("│"));
+              console.log(chalk.hex("#cba6f7")("├" + "─".repeat(62) + "┤"));
+              const summaryLines = exitSummary.rollingText.split("\n");
+              for (const line of summaryLines.slice(0, 12)) { // max 12 lines
+                const truncated = line.slice(0, 60).padEnd(60);
+                console.log(chalk.hex("#cba6f7")("│") + " " + chalk.white(truncated) + " " + chalk.hex("#cba6f7")("│"));
+              }
+              if (exitSummary.tags.length > 0) {
+                console.log(chalk.hex("#cba6f7")("├" + "─".repeat(62) + "┤"));
+                const tagLine = `🏷️  ${exitSummary.tags.join(" | ")} | ${exitSummary.domain}`.slice(0, 60).padEnd(60);
+                console.log(chalk.hex("#cba6f7")("│") + " " + chalk.gray(tagLine) + " " + chalk.hex("#cba6f7")("│"));
+              }
+              if (exitSummary.keyDecisions.length > 0) {
+                console.log(chalk.hex("#cba6f7")("├" + "─".repeat(62) + "┤"));
+                console.log(chalk.hex("#cba6f7")("│") + chalk.bold.yellow("  ⚡ Perubahan kunci:").padEnd(60) + chalk.hex("#cba6f7")("│"));
+                for (const d of exitSummary.keyDecisions.slice(0, 4)) {
+                  console.log(chalk.hex("#cba6f7")("│") + chalk.cyan("  • " + d.slice(0, 57).padEnd(57)) + chalk.hex("#cba6f7")("│"));
+                }
+              }
+              console.log(chalk.hex("#cba6f7")("└" + "─".repeat(62) + "┘"));
+              console.log(chalk.gray("  💾 Summary disimpan di .novara/memory/"));
+            } else {
+              exitSpinner.stop();
+            }
+          } catch {
+            exitSpinner.stop();
+          }
+          console.log(chalk.green("\nKeluar dari sesi chat. Sampai jumpa!"));
           break;
         }
 
-        if (msg.startsWith("/") || msg.startsWith("\\")) {
+        if (msg.startsWith("!")) {
+          const cmd = msg.slice(1).trim();
+          if (cmd) {
+            try {
+              console.log(chalk.cyan(`\n$ ${cmd}`));
+              execSync(cmd, { stdio: "inherit" });
+              console.log();
+            } catch (err: any) {
+              console.log(chalk.red(`Gagal menjalankan perintah: ${err.message}\n`));
+            }
+          }
+        } else if (msg.startsWith("/") || msg.startsWith("\\")) {
           // Normalize backslash to slash for orchestrator execution
           const normalizedMsg = msg.startsWith("\\") ? "/" + msg.slice(1) : msg;
           await orchestrator.handleSlashCommand(normalizedMsg);

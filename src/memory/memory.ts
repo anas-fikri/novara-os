@@ -88,6 +88,20 @@ export class MemorySystem {
     fs.appendFileSync(this.historyPath, logLine, "utf-8");
   }
 
+  /**
+   * Returns the total number of messages (lines) in the active session JSONL.
+   * Used by the consolidator to track turn count without loading all messages.
+   */
+  getMessageCount(): number {
+    if (!fs.existsSync(this.historyPath)) return 0;
+    try {
+      const content = fs.readFileSync(this.historyPath, "utf-8");
+      return content.trim().split("\n").filter(Boolean).length;
+    } catch {
+      return 0;
+    }
+  }
+
   getRecentHistory(limit: number = 30): ChatMessage[] {
     if (!fs.existsSync(this.historyPath)) {
       return [];
