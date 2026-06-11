@@ -234,6 +234,24 @@ program
     }
   });
 
+// Command: Provider (Alias for Setup)
+program
+  .command("provider")
+  .description("Alias untuk setup (Setup provider LLM dan API Key)")
+  .action(async () => {
+    const manager = new WorkspaceManager();
+    if (!manager.isWorkspace()) {
+      console.log(chalk.red("Folder ini bukan workspace Novara OS. Jalankan 'novara init' terlebih dahulu."));
+      return;
+    }
+
+    try {
+      await runInteractiveSetup(manager);
+    } catch (err: any) {
+      console.error(chalk.red(`Gagal melakukan setup provider: ${err.message}`));
+    }
+  });
+
 // Command: Model Selection
 program
   .command("model")
@@ -670,6 +688,7 @@ program
                 "/model ",
                 "/set-key ",
                 "/setup",
+                "/provider",
                 "/tools",
                 "/mcp",
                 "/add-mcp ",

@@ -1549,6 +1549,7 @@ Instruksi tambahan:
         }
         break;
 
+      case "provider":
       case "setup":
         await runInteractiveSetup(this.workspaceManager);
         this.config = this.workspaceManager.loadConfig();
