@@ -4,7 +4,7 @@ import path from "path";
 import http from "http";
 import os from "os";
 
-const TEMP_DIR = path.join(process.cwd(), "temp-workspace-e2e");
+const TEMP_DIR = path.join(os.tmpdir(), "temp-workspace-e2e");
 const PORT = 8089;
 let serverProcess = null;
 

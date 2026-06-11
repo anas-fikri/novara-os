@@ -24,37 +24,36 @@ Setiap kali Anda berpindah fase atau menyelesaikan sub-tugas besar, Anda wajib m
 
 ### Fase 1: Rapat AI (AI Meeting & Alignment)
 Sebelum menulis baris kode pertama, Anda harus memfasilitasi pertemuan koordinasi internal antar-persona AI untuk menganalisis kebutuhan pengguna.
-1.  **Simulasikan Diskusi**: Tulis dialog multi-persona di dalam file `.novara/meeting_minutes.md` yang mencakup:
-    *   **Product Manager (PM)**: Menjelaskan scope kebutuhan, prioritas fitur, dan user experience.
-    *   **Technical Architect**: Mengusulkan arsitektur file, relasi data, pilihan pustaka/library, dan pola integrasi.
-    *   **Senior Developer**: Mengkritik rancangan arsitektur, memberikan opsi alternatif yang lebih sederhana dan efisien, serta menyoroti tingkat kesulitan kode.
-    *   **QA Lead**: Mendaftar rencana uji (test cases), potensi kegagalan sistem, dan batas keandalan (edge cases).
-2.  **Output Rapat**: Simpan diskusi lengkap beserta kesepakatan rancangan teknis ke `.novara/meeting_minutes.md`.
-3.  **Persetujuan Pengguna (Human-in-the-Loop)**: Minta pengguna meninjau file `.novara/meeting_minutes.md`. Tanyakan apakah pengguna setuju dengan rencana tersebut. **Jangan masuk ke Fase Coding sebelum pengguna menyetujui (atau menyetir/steer) hasil Rapat AI.**
-4.  Setelah disetujui, ubah `"meeting_approved": true` dan transisi `"current_phase": "coding"` di `.novara/state.json`.
+1.  **Simulasikan Diskusi**: Salin template `.novara/skills/super-bmad/templates/01_meeting_minutes.md` ke `.novara/docs/01_meeting_minutes.md` (buat folder `.novara/docs/` jika belum ada).
+2.  Tulis dialog multi-persona PM, Architect, Dev, dan QA di file tersebut untuk menyepakati scope dan skenario uji.
+3.  **Persetujuan Pengguna (Human-in-the-Loop)**: Minta pengguna meninjau file `.novara/docs/01_meeting_minutes.md`. Tanyakan apakah pengguna setuju. **Jangan masuk ke Fase Coding sebelum pengguna menyetujui (atau menyetir/steer) hasil Rapat AI.**
+4.  Setelah disetujui, ubah `"meeting_approved": true` dan transisi `"current_phase": "technical_spec"` di `.novara/state.json`.
 
-### Fase 2: Coding & Incremental Implementation
-1.  Buat/edit file kode secara bertahap sesuai arsitektur yang disetujui.
+### Fase 2: Spesifikasi Teknis (Technical Specification)
+1.  **Tulis Spesifikasi**: Salin template `.novara/skills/super-bmad/templates/02_technical_specification.md` ke `.novara/docs/02_technical_specification.md`.
+2.  Tulis relasi database/data schema baru, spesifikasi kontrak API, dan file blueprint (daftar file baru/diubah) sebelum memulai implementasi.
+3.  Perbarui status di `.novara/state.json` dan transisi ke `"current_phase": "coding"`.
+
+### Fase 3: Coding & Incremental Implementation
+1.  Buat/edit file kode secara bertahap sesuai blueprint di `02_technical_specification.md`.
 2.  **Prinsip Irit Token**: Jangan membaca file besar secara menyeluruh. Gunakan grep/regex pencarian parsial.
 3.  Setelah menulis/memodifikasi kode utama, tulis file test case (unit/integration test) yang relevan untuk memvalidasi perubahan.
 4.  Perbarui `.novara/state.json` dan transisi ke `"current_phase": "bug_hunting"`.
 
-### Fase 3: Looping Bug Hunting & Auto-Debugging
+### Fase 4: Looping Bug Hunting & Auto-Debugging
 1.  Jalankan helper script `.novara/skills/super-bmad/scripts/bug_hunter.js` menggunakan tool eksekusi command.
 2.  Baca file laporan hasil debugging `.novara/bug_report.json` yang dihasilkan script.
 3.  **Looping Debugging**:
     *   Jika ada pengujian gagal (bugs ditemukan):
-        *   Baca detail kegagalan di `.novara/bug_report.json`.
-        *   Gunakan grep/pencarian baris untuk langsung menuju lokasi error pada kode.
-        *   Perbaiki kode tersebut.
+        *   Perbaiki kode di lokasi eror.
         *   Jalankan kembali script `.novara/skills/super-bmad/scripts/bug_hunter.js`.
     *   Jika semua pengujian lolos (0 bugs):
         *   Keluar dari loop.
-4.  Perbarui status di `.novara/state.json` dengan transisi ke `"current_phase": "production_ready"`.
+4.  **Tulis Laporan Tes**: Salin template `.novara/skills/super-bmad/templates/03_test_report.md` ke `.novara/docs/03_test_report.md` dan catat hasil uji coba serta riwayat perbaikan bug.
+5.  Perbarui status di `.novara/state.json` dengan transisi ke `"current_phase": "production_ready"`.
 
-### Fase 4: Production Ready
+### Fase 5: Production Ready & Release
 1.  Verifikasi build aplikasi (misalnya menjalankan `npm run build` atau kompilator bahasa terkait).
-2.  Verifikasi kebersihan kode (linting).
-3.  Pastikan semua file konfigurasi (.env, config.json) terisi dengan benar.
-4.  Perbarui `.novara/state.json` ke `"current_phase": "done"`.
-5.  Laporkan penyelesaian tugas akhir secara ringkas kepada pengguna dengan melampirkan checkpoint pengerjaan.
+2.  **Tulis Changelog Rilis**: Salin template `.novara/skills/super-bmad/templates/04_release_changelog.md` ke `.novara/docs/04_release_changelog.md`. Catat rincian perubahan, env tambahan, dan instruksi deploy.
+3.  Perbarui `.novara/state.json` ke `"current_phase": "done"`.
+4.  Laporkan penyelesaian tugas akhir secara ringkas kepada pengguna dengan melampirkan checkpoint dokumentasi baru di folder `.novara/docs/`.

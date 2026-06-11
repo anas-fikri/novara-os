@@ -46,10 +46,11 @@ export class WorkspaceManager {
     let dir = path.resolve(targetDir);
     let found = false;
     
-    // Walk up search for .novara directory
+    // Walk up search for .novara directory with workspace.yaml
     while (true) {
       const novaraDir = path.join(dir, ".novara");
-      if (fs.existsSync(novaraDir)) {
+      const configPath = path.join(novaraDir, "workspace.yaml");
+      if (fs.existsSync(novaraDir) && fs.existsSync(configPath)) {
         this.currentDir = dir;
         this.novaraDir = novaraDir;
         found = true;
@@ -153,6 +154,9 @@ OLLAMA_BASE_URL=
 # Custom Google OAuth App (Untuk perintah 'novara login')
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
+
+# Hermes Agent Integration (Untuk sub-agent dinamis)
+HERMES_API_URL=http://localhost:8316/v1/agent/run
 `;
       const masterKey = getOrGenerateMasterKey();
       const encrypted = encrypt(secretsTemplate, masterKey);
